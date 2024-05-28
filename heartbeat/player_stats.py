@@ -195,21 +195,26 @@ class PlayerStatsTask(Task):
 
         queued_players = [x[0] for x in Connection.execute("SELECT uuid FROM player_stats_queue")]
         search_players = list(online_all | set(queued_players))[::-1]
+
+        search_players_clause = '(' + ','.join(f'"{name}"' for name in online_all) + ')'
+        search_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in queued_players) + ')'
+        existing_player_uuids = [x[0] for x in Connection.execute(f"SELECT uuid FROM uuid_name WHERE name IN {search_players_clause}" + (f" OR uuid IN {search_uuids_clause}" if queued_players else ""))]
+        existing_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in existing_player_uuids) + ')'
         # search_players = [x[0] for x in Connection.execute("SELECT * FROM `player_stats` ORDER BY playtime DESC LIMIT 10000;")][5000:]
 
         old_membership = {}
-        res = Connection.execute("SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != ''")
+        res = Connection.execute(f"SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != '' AND uuid IN {existing_uuids_clause}")
         for uuid, guild, guild_rank in res:
             old_membership[uuid] = [guild, guild_rank]
 
-        res = Connection.execute("SELECT uuid, character_id, time, warcount FROM cumu_warcounts")
+        res = Connection.execute(f"SELECT uuid, character_id, time, warcount FROM cumu_warcounts WHERE uuid IN {existing_uuids_clause}")
         prev_warcounts = {}
         for uuid, character_id, _, warcount in res:
             if not uuid in prev_warcounts:
                 prev_warcounts[uuid] = {}
             prev_warcounts[uuid][character_id] = warcount
         
-        res = Connection.execute("SELECT uuid, label, value FROM player_global_stats")
+        res = Connection.execute(f"SELECT uuid, label, value FROM player_global_stats WHERE uuid IN {existing_uuids_clause}")
         old_global_data = {}
         for uuid, label, value in res:
             if not uuid in old_global_data:
