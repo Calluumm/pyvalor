@@ -107,6 +107,19 @@ class PlayerStatsTask(Task):
         row[PlayerStatsTask.idx["uuid"]] = uuid
         player = stats["username"] # make sure player becomes username
 
+        if not "lastJoin" in stats: 
+            return False
+
+        row[PlayerStatsTask.idx["lastjoin"]] = datetime.datetime.fromisoformat(stats["lastJoin"][:-1]).timestamp()
+
+        if not "firstJoin" in stats: 
+            return False
+
+        row[PlayerStatsTask.idx["firstjoin"]] = datetime.datetime.fromisoformat(stats["firstJoin"][:-1]).timestamp()
+
+        if not "characters" in stats:
+            return False
+        
         PlayerStatsTask.append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats)
 
         guild = None
@@ -121,19 +134,6 @@ class PlayerStatsTask(Task):
 
         row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
         row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
-
-        if not "lastJoin" in stats: 
-            return False
-
-        row[PlayerStatsTask.idx["lastjoin"]] = datetime.datetime.fromisoformat(stats["lastJoin"][:-1]).timestamp()
-
-        if not "firstJoin" in stats: 
-            return False
-
-        row[PlayerStatsTask.idx["firstjoin"]] = datetime.datetime.fromisoformat(stats["firstJoin"][:-1]).timestamp()
-
-        if not "characters" in stats:
-            return False
 
         character_data = stats["characters"]
         for cl_name in character_data:
@@ -170,7 +170,7 @@ class PlayerStatsTask(Task):
             # row[idx["combat"]] += cl["level"] todo combat lvl is gone
             
             if not cl.get("professions"): 
-                return False
+                continue
 
             for prof in cl.get("professions"):
                 if not "xpPercent" in cl["professions"][prof]: continue
@@ -308,7 +308,7 @@ class PlayerStatsTask(Task):
                             PlayerStatsTask.write_results_to_db(inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats)
                             inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats = PlayerStatsTask.get_empty_stats_track_buffers()
 
-                        await asyncio.sleep(0.3)
+                        await asyncio.sleep(0.6)
 
                     except Exception as e:
                         logger.info(f"PLAYER STATS TASK ERROR")
