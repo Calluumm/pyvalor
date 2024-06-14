@@ -130,7 +130,6 @@ class PlayerStatsTask(Task):
         
         old_guild, old_rank = old_membership.get(uuid, [None, None])
         if guild != old_guild:
-            print(old_guild)
             inserts_guild_log.append(f"('{uuid}', '{old_guild}', '{old_rank}', '{guild}', {time.time()})")
 
         row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
