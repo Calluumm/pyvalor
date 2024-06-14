@@ -130,6 +130,7 @@ class PlayerStatsTask(Task):
         
         old_guild, old_rank = old_membership.get(uuid, [None, None])
         if guild != old_guild:
+            print(old_guild)
             inserts_guild_log.append(f"('{uuid}', '{old_guild}', '{old_rank}', '{guild}', {time.time()})")
 
         row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
@@ -186,12 +187,13 @@ class PlayerStatsTask(Task):
         return True
 
     @staticmethod
-    async def get_stats_track_references(needs_player_list=True):
+    async def get_stats_track_references(needs_player_list=True, force_player_list=[]):
         if needs_player_list:
             online_all = await Async.get("https://api.wynncraft.com/v3/player")
         else: 
             online_all = {}
         online_all = {name for name in online_all.get("players", [])}
+        online_all = online_all | set(force_player_list)
 
         queued_players = [x[0] for x in Connection.execute("SELECT uuid FROM player_stats_queue")]
         search_players = list(online_all | set(queued_players))[::-1]
