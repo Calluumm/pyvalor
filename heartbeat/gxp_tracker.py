@@ -25,19 +25,24 @@ class GXPTrackerTask(Task):
                 logger.info("GXP START")
                 start = time.time()
 
-                res = Connection.execute("SELECT guild FROM guild_autotrack_active ORDER BY priority DESC LIMIT 50;")
-                guild_names = [row[0] for row in res]
+                guild_names = Connection.execute("SELECT guild, priority FROM guild_autotrack_active ORDER BY priority DESC LIMIT 50;")
 
                 res = Connection.execute("SELECT uuid, value FROM player_global_stats WHERE label='gu_gxp'")
                 prev_member_gxps = {}
                 for uuid, value in res:
                     prev_member_gxps[uuid] = value
 
-                for guild in guild_names:
+                active_guild_rows = []
+                for guild, priority in guild_names:
                     URL = f"https://api.wynncraft.com/v3/guild/{guild}"
                     g = await Async.get(URL)
                     if not "members" in g:
-                        continue
+                        continue    
+                    
+                    if "xpPercent" in g and "level" in g:
+                        active_guild_rows.append((g["name"], priority, g["level"] + g["xpPercent"] / 100))
+                    else:
+                        logger.warn(f"guild {g['name']} does not have level or xpPercent info")
 
                     members = []
                     insert_gxp_deltas = []
@@ -104,6 +109,11 @@ class GXPTrackerTask(Task):
                         query = "REPLACE INTO player_global_stats VALUES " +\
                             ','.join(f"(\'{uuid}\', 'gu_gxp', {value})" for uuid, value in update_gxp_values)
                         Connection.execute(query)
+
+                    if active_guild_rows:
+                        query = "REPLACE INTO guild_autotrack_active (guild, priority, lvl_and_pct) VALUES " + \
+                            ("(%s, %s, %s),"*len(active_guild_rows))[:-1] + ';'
+                        Connection.execute(query, active_guild_rows, prep_values=[y for x in active_guild_rows for y in x])
 
                     end = time.time()
                     

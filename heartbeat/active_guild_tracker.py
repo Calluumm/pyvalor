@@ -26,13 +26,17 @@ class ActiveGuildTrackerTask(Task):
                 start = time.time()
 
                 query = f"""
-REPLACE INTO guild_autotrack_active (guild, priority)
-    (SELECT guild, COUNT(*) AS records
+REPLACE INTO guild_autotrack_active (guild, priority, lvl_and_pct)
+    (SELECT A.guild, A.priority, IFNULL(B.lvl_and_pct,0) 
+FROM
+    (SELECT guild, COUNT(*) AS priority
     FROM `player_delta_record` 
     WHERE guild<>"None" AND `time` >= (%s)
     GROUP BY guild
-    ORDER BY records DESC
-    LIMIT 50);
+    ORDER BY priority DESC
+    LIMIT 50) A
+    LEFT JOIN 
+    guild_autotrack_active B ON A.guild=B.guild);
 """
                 Connection.execute(query, prep_values=[start - 3600*24*7]) 
                 
