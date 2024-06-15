@@ -56,7 +56,7 @@ class PlayerStatsTask(Task):
 
     @staticmethod
     def profession_level_to_xp(level):
-        return math.floor((9.5822140011 * math.log(level + 45.4261)) - 39.4289735301)
+        return math.floor(38.1191*math.exp(0.108855*level))
 
     @staticmethod
     def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
@@ -69,7 +69,7 @@ class PlayerStatsTask(Task):
                 if not feat_name in PlayerStatsTask.global_stats_threshold or delta_val >= PlayerStatsTask.global_stats_threshold[feat_name]:
                     deltas_player_global_stats.append((uuid, guild, now, feat_name, delta_val))
             update_player_global_stats.append((uuid, feat_name, new_val))
-
+        
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
         try:
@@ -88,7 +88,7 @@ class PlayerStatsTask(Task):
 
             # Sum character-exclusive stats to get new global stats
             character_uuids = [*stats["characters"].keys()]
-            character_features = ["playtime", "logins", "deaths", "discoveries"];
+            character_features = ["playtime", "logins", "deaths", "discoveries"]
 
             character_stats = {}
             for character_uuid in character_uuids:
