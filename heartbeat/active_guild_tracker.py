@@ -26,8 +26,8 @@ class ActiveGuildTrackerTask(Task):
                 start = time.time()
 
                 query = f"""
-REPLACE INTO guild_autotrack_active (guild, priority, lvl_and_pct)
-    (SELECT A.guild, A.priority, IFNULL(B.lvl_and_pct,0) 
+REPLACE INTO guild_autotrack_active (guild, priority, level)
+    (SELECT A.guild, A.priority, IFNULL(B.level, 0) 
 FROM
     (SELECT guild, COUNT(*) AS priority
     FROM `player_delta_record` 

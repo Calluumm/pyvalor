@@ -7,10 +7,27 @@ import datetime
 import time
 import sys
 from log import logger
+import math
 
 class GXPTrackerTask(Task):
     def __init__(self, start_after, sleep):
         super().__init__(start_after, sleep)
+
+    @staticmethod
+    def level_to_xp(level):
+        return 133289*math.exp(0.139765*level)
+    
+    @staticmethod
+    def xp_to_float_level(xp):
+        return math.log(xp/133289)/0.139765
+
+    @staticmethod
+    def level_pct_to_float(level, pct):
+        xp_to_curr = GXPTrackerTask.level_to_xp(level)
+        xp_to_next = GXPTrackerTask.level_to_xp(level + 1)
+        curr_xp = xp_to_curr + pct*(xp_to_next - xp_to_curr)
+        
+        return GXPTrackerTask.xp_to_float_level(curr_xp)
         
     def stop(self):
         self.finished = True
@@ -40,7 +57,7 @@ class GXPTrackerTask(Task):
                         continue    
                     
                     if "xpPercent" in g and "level" in g:
-                        active_guild_rows.append((g["name"], priority, g["level"] + g["xpPercent"] / 100))
+                        active_guild_rows.append((g["name"], priority, GXPTrackerTask.level_pct_to_float(g["level"], g["xpPercent"] / 100)))
                     else:
                         logger.warn(f"guild {g['name']} does not have level or xpPercent info")
 
@@ -111,7 +128,7 @@ class GXPTrackerTask(Task):
                         Connection.execute(query)
 
                     if active_guild_rows:
-                        query = "REPLACE INTO guild_autotrack_active (guild, priority, lvl_and_pct) VALUES " + \
+                        query = "REPLACE INTO guild_autotrack_active (guild, priority, level) VALUES " + \
                             ("(%s, %s, %s),"*len(active_guild_rows))[:-1] + ';'
                         Connection.execute(query, active_guild_rows, prep_values=[y for x in active_guild_rows for y in x])
 
