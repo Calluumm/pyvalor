@@ -56,7 +56,17 @@ class PlayerStatsTask(Task):
 
     @staticmethod
     def profession_level_to_xp(level):
+        # "profesisons_level_to_xp(5.5) is not the same at level 5 and 50% of the way to level 6" type of situation
+        assert isinstance(level, int), "Level needs to be an int (msg Andrew for xp percent calculations)"
         return math.floor(38.1191*math.exp(0.108855*level))
+    
+    @staticmethod
+    def lvl_pct_to_xp(level, xpPercent):
+        xp_to_curr = PlayerStatsTask.profession_level_to_xp(level)
+        xp_to_next = PlayerStatsTask.profession_level_to_xp(level + 1)
+        curr_xp = xpPercent * (xp_to_next - xp_to_curr) + xp_to_curr
+
+        return curr_xp
 
     @staticmethod
     def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
@@ -102,7 +112,7 @@ class PlayerStatsTask(Task):
                 for profession in [*stats["characters"][character_uuid]["professions"].keys()]:
                     character_prof_data = character_data.get("professions", {}).get(profession)
                     if character_prof_data is None: continue
-                    character_prof_xp = PlayerStatsTask.profession_level_to_xp(PlayerStatsTask.null_or_value(character_prof_data.get("level", 1)) + (PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100))
+                    character_prof_xp = PlayerStatsTask.lvl_pct_to_xp(character_prof_data.get("level", 1), PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100)
                     character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
 
             PlayerStatsTask.append_player_global_stats_feature(character_features, now, uuid, guild, character_stats, old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
