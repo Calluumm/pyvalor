@@ -25,7 +25,7 @@ class GXPTrackerTask(Task):
                 logger.info("GXP START")
                 start = time.time()
 
-                res = Connection.execute("SELECT guild FROM guild_autotrack_active")
+                res = Connection.execute("SELECT guild FROM guild_autotrack_active ORDER BY priority DESC LIMIT 50;")
                 guild_names = [row[0] for row in res]
 
                 res = Connection.execute("SELECT uuid, value FROM player_global_stats WHERE label='gu_gxp'")

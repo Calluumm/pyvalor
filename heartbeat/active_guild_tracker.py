@@ -25,17 +25,16 @@ class ActiveGuildTrackerTask(Task):
                 logger.info("ACTIVE GUILD TRACKER START")
                 start = time.time()
 
-                query_1 = "DELETE FROM guild_autotrack_active;"
-                query_2 = f"""
-INSERT INTO guild_autotrack_active 
+                query = f"""
+REPLACE INTO guild_autotrack_active (guild, priority)
     (SELECT guild, COUNT(*) AS records
     FROM `player_delta_record` 
-    WHERE guild<>"None" AND `time` >= {start - 3600*24*7}
+    WHERE guild<>"None" AND `time` >= (%s)
     GROUP BY guild
     ORDER BY records DESC
     LIMIT 50);
 """
-                Connection.exec_all([query_1, query_2]) 
+                Connection.execute(query, prep_values=[start - 3600*24*7]) 
                 
                 end = time.time()
                 logger.info("ACTIVE GUILD TRACKER"+f" {end-start}s")
