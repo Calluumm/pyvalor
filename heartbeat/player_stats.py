@@ -8,6 +8,7 @@ import datetime
 import sys
 from dotenv import load_dotenv
 import json
+import math
 import os
 from log import logger
 
@@ -54,17 +55,21 @@ class PlayerStatsTask(Task):
         return uuid36
 
     @staticmethod
-    def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats):
+    def profession_level_to_xp(level):
+        return math.floor(38.1191*math.exp(0.108855*level))
+
+    @staticmethod
+    def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
         old_player_global_stats = old_global_stats.get(uuid)
         for feat in feature_list:
-            feat_name = f"g_{feat}"
+            feat_name = f"{prefix}_{feat}"
             new_val = kv_dict[feat]
             delta_val = (new_val - old_player_global_stats[feat_name]) if old_player_global_stats and feat_name in old_player_global_stats else 0
             if delta_val > 0:
                 if not feat_name in PlayerStatsTask.global_stats_threshold or delta_val >= PlayerStatsTask.global_stats_threshold[feat_name]:
                     deltas_player_global_stats.append((uuid, guild, now, feat_name, delta_val))
             update_player_global_stats.append((uuid, feat_name, new_val))
-
+        
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
         try:
@@ -73,13 +78,33 @@ class PlayerStatsTask(Task):
             global_data_raids_features = [*stats["globalData"]["raids"]["list"].keys()]
             global_data_pvp_features = ["kills", "deaths"]
             now = time.time()
-            
+
             uuid = stats["uuid"]
             guild = stats["guild"]["name"] if stats["guild"] else "None"
             PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats["globalData"], old_global_data, update_player_global_stats, deltas_player_global_stats)
             PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats["globalData"]["dungeons"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
             PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats["globalData"]["raids"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
             PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats["globalData"]["pvp"], old_global_data, update_player_global_stats, deltas_player_global_stats)
+
+            # Sum character-exclusive stats to get new global stats
+            character_uuids = [*stats["characters"].keys()]
+            character_features = ["playtime", "logins", "deaths", "discoveries"]
+
+            character_stats = {}
+            for character_uuid in character_uuids:
+                character_data = stats["characters"][character_uuid]
+                for character_feature in character_features:
+                    character_stats[character_feature] = character_stats.get(character_feature, 0) + PlayerStatsTask.null_or_value(character_data.get(character_feature))
+                character_stats["professions"] = {}
+                for profession in [*stats["characters"][character_uuid]["professions"].keys()]:
+                    character_prof_data = character_data.get("professions", {}).get(profession)
+                    if character_prof_data is None: continue
+                    character_prof_xp = PlayerStatsTask.profession_level_to_xp(PlayerStatsTask.null_or_value(character_prof_data.get("level", 1)) + (PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100))
+                    character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
+
+            PlayerStatsTask.append_player_global_stats_feature(character_features, now, uuid, guild, character_stats, old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
+            PlayerStatsTask.append_player_global_stats_feature([*character_stats["professions"].keys()], now, uuid, guild, character_stats["professions"], old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
+
         except Exception as e:
             logger.exception(e)
             logger.warn(f"PLAYER STATS could not append global data for {stats['uuid']}")
