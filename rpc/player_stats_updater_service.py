@@ -12,7 +12,7 @@ class PlayerStatsUpdater(player_stats_update_pb2_grpc.PlayerStatsUpdater):
         request: player_stats_update_pb2.Request,
         context: grpc.aio.ServicerContext,
     ) -> player_stats_update_pb2.Response:
-        search_players, old_membership, prev_warcounts, old_global_stats = await PlayerStatsTask.get_stats_track_references(needs_player_list=True, force_player_list=request.player_uuid)
+        search_players, old_membership, prev_warcounts, old_global_stats = await PlayerStatsTask.get_stats_track_references(needs_player_list=False, force_player_list=request.player_uuid)
         inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats = PlayerStatsTask.get_empty_stats_track_buffers()
         failures = []
         for player_uuid in request.player_uuid:
