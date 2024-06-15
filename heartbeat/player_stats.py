@@ -91,11 +91,14 @@ class PlayerStatsTask(Task):
             character_features = ["playtime", "logins", "deaths", "discoveries"]
 
             character_stats = {}
+            character_stats["professions"] = {}
+
             for character_uuid in character_uuids:
                 character_data = stats["characters"][character_uuid]
+
                 for character_feature in character_features:
                     character_stats[character_feature] = character_stats.get(character_feature, 0) + PlayerStatsTask.null_or_value(character_data.get(character_feature))
-                character_stats["professions"] = {}
+                
                 for profession in [*stats["characters"][character_uuid]["professions"].keys()]:
                     character_prof_data = character_data.get("professions", {}).get(profession)
                     if character_prof_data is None: continue
