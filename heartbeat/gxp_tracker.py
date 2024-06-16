@@ -15,7 +15,7 @@ class GXPTrackerTask(Task):
 
     @staticmethod
     def level_to_xp(level):
-        return 133289*math.exp(0.139765*(level-1))
+        return 115903.12387205703*math.exp(0.139765*level)
     
     @staticmethod
     def xp_to_float_level(xp):
