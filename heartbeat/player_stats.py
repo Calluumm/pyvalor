@@ -58,7 +58,7 @@ class PlayerStatsTask(Task):
     def profession_level_to_xp(level):
         # "profesisons_level_to_xp(5.5) is not the same at level 5 and 50% of the way to level 6" type of situation
         assert isinstance(level, int), "Level needs to be an int (msg Andrew for xp percent calculations)"
-        return math.floor(38.1191*math.exp(0.108855*level))
+        return math.floor(369.525*math.exp(0.108856*level))
     
     @staticmethod
     def lvl_pct_to_xp(level, xpPercent):
