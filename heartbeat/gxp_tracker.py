@@ -75,43 +75,43 @@ class GXPTrackerTask(Task):
                             if gxp_delta > 0:
                                 insert_gxp_deltas.append((member_fields["uuid"], gxp_delta))
 
-                    if guild == "Titans Valor":
+                    # if guild == "Titans Valor":
 
-                        query = Connection.execute(f"SELECT * FROM user_total_xps")
-                        uuid_to_xp = {x[4]: x[:4] for x in query}  # name, xp, lastxp, guild
+                    #     query = Connection.execute(f"SELECT * FROM user_total_xps")
+                    #     uuid_to_xp = {x[4]: x[:4] for x in query}  # name, xp, lastxp, guild
 
-                        new_queries = []
-                        new_members = []
-                        record_xps = []
+                    #     new_queries = []
+                    #     new_members = []
+                    #     record_xps = []
 
-                        for m in members:
-                            if m["uuid"] not in uuid_to_xp:
-                                # New user
-                                new_members.append(
-                                    f"(\"{m['name']}\",{m['contributed']},{m['contributed']},\"Titans Valor\",\"{m['uuid']}\")"
-                                )
-                            elif m["contributed"] < uuid_to_xp[m["uuid"]][2]:
-                                # User rejoins
-                                new_xp = uuid_to_xp[m["uuid"]][1] + m["contributed"]
-                                new_queries.append(
-                                    f"UPDATE user_total_xps SET xp={new_xp}, last_xp={m['contributed']} WHERE uuid=\"{m['uuid']}\";")
-                                record_xps.append(
-                                    f"(\"{m['uuid']}\", \"{m['name']}\", \"Titans Valor\", {m['contributed']}, {int(time.time())})")
-                            elif m["contributed"] > uuid_to_xp[m["uuid"]][2]:
-                                # User gains xp
-                                delta = m["contributed"] - uuid_to_xp[m["uuid"]][2]
-                                new_xp = uuid_to_xp[m["uuid"]][1] + delta
-                                new_queries.append(
-                                    f"UPDATE user_total_xps SET xp={new_xp}, last_xp={m['contributed']} WHERE uuid=\"{m['uuid']}\";")
-                                record_xps.append(
-                                    f"(\"{m['uuid']}\", \"{m['name']}\", \"Titans Valor\", {delta}, {int(time.time())})")
+                    #     for m in members:
+                    #         if m["uuid"] not in uuid_to_xp:
+                    #             # New user
+                    #             new_members.append(
+                    #                 f"(\"{m['name']}\",{m['contributed']},{m['contributed']},\"Titans Valor\",\"{m['uuid']}\")"
+                    #             )
+                    #         elif m["contributed"] < uuid_to_xp[m["uuid"]][2]:
+                    #             # User rejoins
+                    #             new_xp = uuid_to_xp[m["uuid"]][1] + m["contributed"]
+                    #             new_queries.append(
+                    #                 f"UPDATE user_total_xps SET xp={new_xp}, last_xp={m['contributed']} WHERE uuid=\"{m['uuid']}\";")
+                    #             record_xps.append(
+                    #                 f"(\"{m['uuid']}\", \"{m['name']}\", \"Titans Valor\", {m['contributed']}, {int(time.time())})")
+                    #         elif m["contributed"] > uuid_to_xp[m["uuid"]][2]:
+                    #             # User gains xp
+                    #             delta = m["contributed"] - uuid_to_xp[m["uuid"]][2]
+                    #             new_xp = uuid_to_xp[m["uuid"]][1] + delta
+                    #             new_queries.append(
+                    #                 f"UPDATE user_total_xps SET xp={new_xp}, last_xp={m['contributed']} WHERE uuid=\"{m['uuid']}\";")
+                    #             record_xps.append(
+                    #                 f"(\"{m['uuid']}\", \"{m['name']}\", \"Titans Valor\", {delta}, {int(time.time())})")
 
-                        if new_members:
-                            Connection.execute(f"INSERT INTO user_total_xps VALUES {','.join(new_members)};")
-                        if record_xps:
-                            Connection.execute(f"INSERT INTO member_record_xps VALUES {','.join(record_xps)};")
-                        if new_queries:
-                            Connection.exec_all(new_queries)
+                    #     if new_members:
+                    #         Connection.execute(f"INSERT INTO user_total_xps VALUES {','.join(new_members)};")
+                    #     if record_xps:
+                    #         Connection.execute(f"INSERT INTO member_record_xps VALUES {','.join(record_xps)};")
+                    #     if new_queries:
+                    #         Connection.exec_all(new_queries)
 
                     formatted_members = ','.join(f"(\'{guild}\', '{member['name']}')" for member in members)
                     update_members_query_1 = f"DELETE FROM guild_member_cache WHERE guild='{guild}'"
