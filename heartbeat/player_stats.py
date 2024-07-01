@@ -232,28 +232,44 @@ class PlayerStatsTask(Task):
         online_all = {name for name in online_all.get("players", [])}
         online_all = online_all | set(force_player_list)
 
-        queued_players = [x[0] for x in Connection.execute("SELECT uuid FROM player_stats_queue")]
+        already_uuid = [x for x in online_all if '-' in x]
+        online_all = online_all - set(already_uuid)
+
+        queued_players = [] # is this used? [x[0] for x in Connection.execute("SELECT uuid FROM player_stats_queue")]
         search_players = list(online_all | set(queued_players))[::-1]
 
-        search_players_clause = '(' + ','.join(f'"{name}"' for name in online_all) + ')'
-        search_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in queued_players) + ')'
-        existing_player_uuids = [x[0] for x in Connection.execute(f"SELECT uuid FROM uuid_name WHERE name IN {search_players_clause}" + (f" OR uuid IN {search_uuids_clause}" if queued_players else ""))]
-        existing_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in existing_player_uuids) + ')'
+        # search_players_clause = '(' + ','.join(f'"{name}"' for name in online_all) + ')'
+        search_players_clause = '(' + ('%s,'*len(online_all))[:-1] + ')'
+        # search_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in queued_players) + ')'
+        search_uuids_clause = '(' + ('%s,'*len(queued_players))[:-1] + ')'
+
+        existing_player_uuids = []
+        if online_all:
+            existing_player_uuids = [x[0] for x in 
+                Connection.execute(f"SELECT uuid FROM uuid_name WHERE name IN {search_players_clause}" + \
+                                (f" OR uuid IN {search_uuids_clause}" if queued_players else ""), prep_values=list(online_all) + queued_players)]
+        
+        existing_player_uuids.extend(already_uuid)
+        # existing_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in existing_player_uuids) + ')'
+        existing_uuids_clause = '(' + ("%s,"*len(existing_player_uuids))[:-1] + ')'
         # search_players = [x[0] for x in Connection.execute("SELECT * FROM `player_stats` ORDER BY playtime DESC LIMIT 10000;")][5000:]
 
         old_membership = {}
-        res = Connection.execute(f"SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != '' AND uuid IN {existing_uuids_clause}")
+        res = Connection.execute(f"SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != '' AND uuid IN {existing_uuids_clause}",
+                                prep_values=existing_player_uuids)
         for uuid, guild, guild_rank in res:
             old_membership[uuid] = [guild, guild_rank]
 
-        res = Connection.execute(f"SELECT uuid, character_id, time, warcount FROM cumu_warcounts WHERE uuid IN {existing_uuids_clause}")
+        res = Connection.execute(f"SELECT uuid, character_id, time, warcount FROM cumu_warcounts WHERE uuid IN {existing_uuids_clause}",
+                                prep_values=existing_player_uuids)
         prev_warcounts = {}
         for uuid, character_id, _, warcount in res:
             if not uuid in prev_warcounts:
                 prev_warcounts[uuid] = {}
             prev_warcounts[uuid][character_id] = warcount
         
-        res = Connection.execute(f"SELECT uuid, label, value FROM player_global_stats WHERE uuid IN {existing_uuids_clause}")
+        res = Connection.execute(f"SELECT uuid, label, value FROM player_global_stats WHERE uuid IN {existing_uuids_clause}",
+                                prep_values=existing_player_uuids)
         old_global_data = {}
         for uuid, label, value in res:
             if not uuid in old_global_data:
@@ -289,7 +305,7 @@ class PlayerStatsTask(Task):
                                                         for uuid, guild, now, feat_name, delta_val in deltas_player_global_stats)
             query_global_update  = "REPLACE INTO player_global_stats VALUES " + ',\n'.join(f"(\'{uuid}\'," + '"'+feat_name+'"'+f", {value})" 
                                                         for uuid, feat_name, value in update_player_global_stats)
-        
+
             if inserts_war_update:
                 Connection.execute(query_wars_update)
             if inserts_war_deltas:

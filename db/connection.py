@@ -33,7 +33,6 @@ class Connection:
             cursor.execute(query, prep_values)
         else:
             cursor.execute(query)
-        
         res = None
         if fetchall:
             res = list(cursor.fetchall())
