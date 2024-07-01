@@ -20,6 +20,8 @@ class PlayerStatsUpdater(player_stats_update_pb2_grpc.PlayerStatsUpdater):
                                                     inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats)
             if not res:
                 failures.append(player_uuid)
+            
+            await asyncio.sleep(1) # make this one slower
 
         PlayerStatsTask.write_results_to_db(inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats )
         return player_stats_update_pb2.Response(failures=failures)
