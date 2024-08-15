@@ -30,7 +30,7 @@ class GuildActivityTask(Task):
                 logger.info("GUILD ACTIVITY TRACK START")
                 start = time.time()
 
-                guild_data_members = (await Async.get("https://api.wynncraft.com/v3/guild/Titans%20Valor"))["members"]
+                guild_data_members = (await Async.get("https://beta-api.wynncraft.com/v3/guild/Titans%20Valor"))["members"]
                 current_guild_members = set()
                 for rank in guild_data_members:
                     if type(guild_data_members[rank]) != dict: continue
@@ -48,7 +48,7 @@ class GuildActivityTask(Task):
                 Connection.execute("DELETE FROM guild_member_cache WHERE guild='Titans Valor'")
                 Connection.execute("INSERT INTO guild_member_cache VALUES "+",".join(f"('Titans Valor','{x}')" for x in current_guild_members))
                 
-                online_all = await Async.get("https://api.wynncraft.com/v3/player")
+                online_all = await Async.get("https://beta-api.wynncraft.com/v3/player")
                 online_all = {x for x in online_all["players"]}
 
                 inserts = []

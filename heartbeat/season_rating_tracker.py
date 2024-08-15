@@ -28,7 +28,7 @@ class SeasonRatingTrackerTask(Task):
 
                 # Get the top n Guilds
                 top_n = 50
-                url = f"https://api.wynncraft.com/v3/leaderboards/guildLevel?resultLimit={top_n}"
+                url = f"https://beta-api.wynncraft.com/v3/leaderboards/guildLevel?resultLimit={top_n}"
                 guild_data = await Async.get(url)
 
                 top_n_guilds = []
@@ -43,7 +43,7 @@ class SeasonRatingTrackerTask(Task):
                 #     f"ORDER BY start_time DESC LIMIT 1")    
                
                 number_one_guild = guild_data["1"]["name"]
-                seasons = (await Async.get(f"https://api.wynncraft.com/v3/guild/{number_one_guild}"))["seasonRanks"]
+                seasons = (await Async.get(f"https://beta-api.wynncraft.com/v3/guild/{number_one_guild}"))["seasonRanks"]
                 current_season_number = max(map(int, seasons.keys()))
                 if seasons[str(current_season_number)]["finalTerritories"] > 0:
                     # probably off season unless we genuinely end on zero territories
@@ -53,7 +53,7 @@ class SeasonRatingTrackerTask(Task):
                     continue
             
                 for guild_name in top_n_guilds:
-                    guild_url = f"https://api.wynncraft.com/v3/guild/{guild_name}"
+                    guild_url = f"https://beta-api.wynncraft.com/v3/guild/{guild_name}"
                     guild_data = await Async.get(guild_url)
                     current_season_rating = guild_data['seasonRanks'].get(str(current_season_number), {}).get('rating', 0)
 
