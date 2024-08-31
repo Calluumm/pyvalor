@@ -23,7 +23,7 @@ class PlayerActivityTask(Task):
 
             logger.info("PLAYER ACTIVITY TRACK START")
             start = time.time()
-            online_all = await Async.get("https://beta-api.wynncraft.com/v3/player")
+            online_all = await Async.get("https://api.wynncraft.com/v3/player")
             online_all = {x for x in online_all["players"]}
 
             inserts = []
@@ -33,7 +33,7 @@ class PlayerActivityTask(Task):
             player_to_guild_tuples = []
 
             for guild, in res:
-                guild_data = await Async.get("https://beta-api.wynncraft.com/v3/guild/" + guild)
+                guild_data = await Async.get("https://api.wynncraft.com/v3/guild/" + guild)
                 guild_members = []
                 for rank in guild_data["members"]:
                     if isinstance(guild_data["members"][rank], int): continue

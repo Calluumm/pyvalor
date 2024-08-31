@@ -33,7 +33,7 @@ class TerritoryTrackTask(Task):
                 logger.info("TERRITORY TRACK START")
                 start = time.time()
 
-                URL = "https://beta-api.wynncraft.com/v3/guild/list/territory"
+                URL = "https://api.wynncraft.com/v3/guild/list/territory"
                 terrs = await Async.get(URL)
                 old_terrs = {x[0]: x[1] for x in Connection.execute("SELECT * FROM territories")}
 

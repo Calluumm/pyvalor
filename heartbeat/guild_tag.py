@@ -26,7 +26,7 @@ class GuildTagTask(Task):
                 logger.info("GUILD TAG NAME TASK START")
                 start = time.time()
 
-                updated_guilds = set([x for x in await Async.get("https://beta-api.wynncraft.com/v3/guild/list/guild")]) # like 200K mem max
+                updated_guilds = set([x for x in await Async.get("https://api.wynncraft.com/v3/guild/list/guild")]) # like 200K mem max
                 res = Connection.execute("SELECT guild FROM guild_tag_name")
                 current_guilds = set(x[0] for x in res)
                 current_guilds_lower = {x.lower().strip() for x in current_guilds}
@@ -40,7 +40,7 @@ class GuildTagTask(Task):
                 logger.info(f"{difference}")
 
                 for new_guild in difference:
-                    req = await Async.get("https://beta-api.wynncraft.com/v3/guild/"+new_guild)
+                    req = await Async.get("https://api.wynncraft.com/v3/guild/"+new_guild)
                     tag = req["prefix"]
                     
                     current_guild_members = set()

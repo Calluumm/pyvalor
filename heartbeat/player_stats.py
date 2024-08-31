@@ -124,14 +124,14 @@ class PlayerStatsTask(Task):
         
     @staticmethod
     async def track_player(player, old_membership, prev_warcounts, old_global_data, inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats) -> bool:
-        uri = f"https://beta-api.wynncraft.com/v3/player/{player}?fullResult=True"
+        uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult=True"
         try:
             stats = await Async.get(uri)
         except:
             uuid = await PlayerStatsTask.get_uuid(player)
             
             try:
-                uri = f"https://beta-api.wynncraft.com/v3/player/{uuid}?fullResult=True"
+                uri = f"https://api.wynncraft.com/v3/player/{uuid}?fullResult=True"
                 stats = await Async.get(uri)
             except:
                 logger.warn(f"PLAYER STATS uuid and name don't work: {player}")
@@ -226,7 +226,7 @@ class PlayerStatsTask(Task):
     @staticmethod
     async def get_stats_track_references(needs_player_list=True, force_player_list=[]):
         if needs_player_list:
-            online_all = await Async.get("https://beta-api.wynncraft.com/v3/player")
+            online_all = await Async.get("https://api.wynncraft.com/v3/player")
         else: 
             online_all = {}
         online_all = {name for name in online_all.get("players", [])}

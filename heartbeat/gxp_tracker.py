@@ -51,7 +51,7 @@ class GXPTrackerTask(Task):
 
                 active_guild_rows = []
                 for guild, priority in guild_names:
-                    URL = f"https://beta-api.wynncraft.com/v3/guild/{guild}"
+                    URL = f"https://api.wynncraft.com/v3/guild/{guild}"
                     g = await Async.get(URL)
                     if not "members" in g:
                         continue    
