@@ -59,7 +59,7 @@ class TerritoryTrackTask(Task):
                     # guild_terr_cnt[terrs[ter]["guild"]["name"]] += 1
                     if not ter in old_terrs:
                         # new territory. should rarely happen
-                        queries.append(f"INSERT INTO territories VALUES (\"{ter}\", \"{terrs[ter]['guild']["name"]}\", \"none\");")
+                        queries.append(f"INSERT INTO territories VALUES (\"{ter}\", \"{terrs[ter]['guild']['name']}\", \"none\");")
 
                     elif terrs[ter]["guild"]["name"] != old_terrs[ter]:
                         defender, attacker = old_terrs[ter], terrs[ter]['guild']["name"]
