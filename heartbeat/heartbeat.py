@@ -23,7 +23,7 @@ class Heartbeat:
     tasks = [
         TerritoryTrackTask(2, 60, wsconns, cede_tracker),
         PlayerActivityTask(3, 3600),
-        GXPTrackerTask(5, 1800),
+        GXPTrackerTask(5*0, 1800),
         GuildActivityTask(61, 300, wsconns),
         PlayerStatsTask(101, 3600),
         GuildTagTask(41, 3600),

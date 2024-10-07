@@ -6,6 +6,7 @@ from .task import Task
 import datetime
 import time
 import sys
+import math
 from log import logger
 import math
 
@@ -53,17 +54,24 @@ class GXPTrackerTask(Task):
                 for guild, priority in guild_names:
                     URL = f"https://api.wynncraft.com/v3/guild/{guild}"
                     g = await Async.get(URL)
-                    if not "members" in g:
+                    if not "members" in g or not "level" in g:
                         continue    
+
+                    guild_level, guild_percent = g["level"], g["xpPercent"]
+                    gu_float_lvl = GXPTrackerTask.level_pct_to_float(guild_level, guild_percent)
+                    gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
+                    count_raid_threshold = 1/1.15 * gu_req_to_next_xp / 1000 / 4 # 1/1.15 in case it happened on lvl up boundary
                     
-                    if "xpPercent" in g and "level" in g:
-                        active_guild_rows.append((g["name"], priority, GXPTrackerTask.level_pct_to_float(g["level"], g["xpPercent"] / 100)))
+                    if "xpPercent" in g:
+                        active_guild_rows.append((g["name"], priority, gu_float_lvl))
                     else:
                         logger.warn(f"guild {g['name']} does not have level or xpPercent info")
 
                     members = []
                     insert_gxp_deltas = []
                     update_gxp_values = []
+
+                    insert_raid_deltas = []
 
                     for rank in g["members"]:
                         if type(g["members"][rank]) != dict: continue
@@ -72,8 +80,15 @@ class GXPTrackerTask(Task):
                             members.append({"name": member_name, **g["members"][rank][member_name]})
                             gxp_delta = member_fields["contributed"] - prev_member_gxps.get(member_fields["uuid"], member_fields["contributed"])
                             update_gxp_values.append((member_fields["uuid"], member_fields["contributed"]))
+
                             if gxp_delta > 0:
-                                insert_gxp_deltas.append((member_fields["uuid"], gxp_delta))
+                                member_uuid = member_fields["uuid"]
+
+                                if guild_level >= 100 and gxp_delta >= count_raid_threshold:
+                                    num_raids = gxp_delta // count_raid_threshold
+                                    insert_raid_deltas.append((member_uuid, guild, start, num_raids))
+                                    
+                                insert_gxp_deltas.append((member_uuid, gxp_delta))
 
                     # if guild == "Titans Valor":
 
@@ -117,6 +132,10 @@ class GXPTrackerTask(Task):
                     update_members_query_1 = f"DELETE FROM guild_member_cache WHERE guild='{guild}'"
                     update_members_query_2 = f"INSERT INTO guild_member_cache (guild, name) VALUES {formatted_members}"
                     Connection.exec_all([update_members_query_1, update_members_query_2])
+
+                    if insert_raid_deltas:
+                        query = "INSERT INTO guild_raid_records VALUES " + ("(%s, %s, %s, %s),"*len(insert_raid_deltas))[:-1]
+                        Connection.execute(query, prep_values=[y for x in insert_raid_deltas for y in x])
 
                     if insert_gxp_deltas:
                         query = "INSERT INTO player_delta_record VALUES " +\
