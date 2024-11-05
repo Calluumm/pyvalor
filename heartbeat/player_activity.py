@@ -35,6 +35,8 @@ class PlayerActivityTask(Task):
             for guild, in res:
                 guild_data = await Async.get("https://api.wynncraft.com/v3/guild/" + guild)
                 guild_members = []
+                if not "members" in guild_data: continue
+
                 for rank in guild_data["members"]:
                     if isinstance(guild_data["members"][rank], int): continue
                     guild_members.extend((x, guild_data["members"][rank][x]["uuid"]) for x in guild_data["members"][rank])
