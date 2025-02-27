@@ -179,14 +179,15 @@ class PlayerStatsTask(Task):
             cl_type = cl["type"]
 
             warcount = PlayerStatsTask.null_or_value(cl.get("wars", 0))
-            if uuid in prev_warcounts and cl_name in prev_warcounts[uuid]:
-                old_warcount = prev_warcounts[uuid][cl_name]
-                # if war count hasn't changed don't update a thing
-                if warcount != old_warcount:
-                    inserts_war_deltas.append((uuid, cl_name, warcount-old_warcount, cl_type))
+            if warcount > 0:  # did you know there are 1.5 million classes registered but only 30k have a warcount of 1 or more
+                if uuid in prev_warcounts and cl_name in prev_warcounts[uuid]:
+                    old_warcount = prev_warcounts[uuid][cl_name]
+                    # if war count hasn't changed don't update a thing
+                    if warcount != old_warcount:
+                        inserts_war_deltas.append((uuid, cl_name, warcount-old_warcount, cl_type))
+                        inserts_war_update.append((uuid, cl_name, warcount, cl_type))
+                else:
                     inserts_war_update.append((uuid, cl_name, warcount, cl_type))
-            else:
-                inserts_war_update.append((uuid, cl_name, warcount, cl_type))
 
             if cl["dungeons"]:
                 for dung, dung_count in cl["dungeons"]["list"].items():
