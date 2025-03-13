@@ -86,7 +86,7 @@ class GXPTrackerTask(Task):
                             if gxp_delta > 0:
                                 member_uuid = member_fields["uuid"]
 
-                                if guild_level >= 100 and gxp_delta >= count_raid_threshold:
+                                if guild_level >= 100 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
                                     num_raids = gxp_delta // count_raid_threshold
                                     insert_raid_deltas.append((member_uuid, guild, start, num_raids))
                                     
