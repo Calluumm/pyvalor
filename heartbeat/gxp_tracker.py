@@ -61,7 +61,12 @@ class GXPTrackerTask(Task):
 
                     guild_level, guild_percent = g["level"], g["xpPercent"] * 0.01
                     gu_float_lvl = GXPTrackerTask.level_pct_to_float(guild_level, guild_percent)
-                    gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
+                    
+                    if guild_level >= 130:
+                        gu_req_to_next_xp = GXPTrackerTask.level_to_xp(131) - GXPTrackerTask.level_to_xp(130)
+                    else:
+                        gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
+                        
                     count_raid_threshold = 1/1.15 * gu_req_to_next_xp / 1000 / 4 # 1/1.15 in case it happened on lvl up boundary
                     
                     if "xpPercent" in g:
