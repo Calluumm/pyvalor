@@ -63,7 +63,7 @@ class GXPTrackerTask(Task):
                     gu_float_lvl = GXPTrackerTask.level_pct_to_float(guild_level, guild_percent)
                     
                     if guild_level >= 130:
-                        gu_req_to_next_xp = GXPTrackerTask.level_to_xp(131) - GXPTrackerTask.level_to_xp(130)
+                        gu_req_to_next_xp = 10367116453807 # GXPTrackerTask.level_to_xp(131) - GXPTrackerTask.level_to_xp(130)
                     else:
                         gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
                         
