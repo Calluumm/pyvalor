@@ -127,6 +127,13 @@ class PlayerStatsTask(Task):
         uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult=True"
         try:
             stats = await Async.get(uri)
+            first_key = [*stats][0]
+            if "storedName" in stats[first_key]: # there are multiple players so select the first any with a rank
+                rank_order = dict(enumerate([None, "vip", "vipplus", "hero", "champion"]))
+                players_sorted_by_rank = sorted([*stats], key=lambda x: rank_order.get(x, -1), reverse=True) 
+                player = players_sorted_by_rank[0]
+                uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult=True"
+                stats = await Async.get(uri)
         except:
             uuid = await PlayerStatsTask.get_uuid(player)
             
