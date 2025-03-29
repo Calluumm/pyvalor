@@ -16,7 +16,9 @@ class GXPTrackerTask(Task):
 
     @staticmethod
     def level_to_xp(level):
-        return 885689*math.exp(0.139808*level)
+        if level >= 130:
+            return 885689 * math.exp(0.139808 * 130)
+        return 885689 * math.exp(0.139808 * level)
     
     @staticmethod
     def xp_to_float_level(xp):
@@ -59,7 +61,12 @@ class GXPTrackerTask(Task):
 
                     guild_level, guild_percent = g["level"], g["xpPercent"] * 0.01
                     gu_float_lvl = GXPTrackerTask.level_pct_to_float(guild_level, guild_percent)
-                    gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
+                    
+                    if guild_level >= 130:
+                        gu_req_to_next_xp = 10367116453807 # GXPTrackerTask.level_to_xp(131) - GXPTrackerTask.level_to_xp(130)
+                    else:
+                        gu_req_to_next_xp = GXPTrackerTask.level_to_xp(guild_level+1) - GXPTrackerTask.level_to_xp(guild_level)
+                        
                     count_raid_threshold = 1/1.15 * gu_req_to_next_xp / 1000 / 4 # 1/1.15 in case it happened on lvl up boundary
                     
                     if "xpPercent" in g:
@@ -84,7 +91,7 @@ class GXPTrackerTask(Task):
                             if gxp_delta > 0:
                                 member_uuid = member_fields["uuid"]
 
-                                if guild_level >= 100 and gxp_delta >= count_raid_threshold:
+                                if guild_level >= 100 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
                                     num_raids = gxp_delta // count_raid_threshold
                                     insert_raid_deltas.append((member_uuid, guild, start, num_raids))
                                     
