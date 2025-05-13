@@ -9,6 +9,7 @@ from .cede_tracker import CedeTrackTask
 from .wc_players import WCPlayersTask
 from .active_guild_tracker import ActiveGuildTrackerTask
 from .season_rating_tracker import SeasonRatingTrackerTask
+from .player_last_join import PlayerLastJoinTask
 from dotenv import load_dotenv
 import asyncio
 import os
@@ -30,7 +31,8 @@ class Heartbeat:
         # WCPlayersTask(60),
         # cede_tracker,
         ActiveGuildTrackerTask(29, 3600),
-        SeasonRatingTrackerTask(223, 21600)
+        SeasonRatingTrackerTask(223, 21600),
+        PlayerLastJoinTask(31, 120)
     ]
     
     @staticmethod
