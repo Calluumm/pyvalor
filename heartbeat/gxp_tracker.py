@@ -97,7 +97,7 @@ class GXPTrackerTask(Task):
                                     
                                 insert_gxp_deltas.append((member_uuid, gxp_delta))
 
-                    if len(insert_gxp_deltas) < 4:
+                    if 0 < len(insert_gxp_deltas) < 4:
                         logger.info(f"Skipping raid count for {", ".join([i[0] for i in insert_gxp_deltas])} ({guild}) due to less than 4 members in the cycle")
                         insert_gxp_deltas = []
 
