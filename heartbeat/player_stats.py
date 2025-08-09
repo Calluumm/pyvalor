@@ -124,7 +124,7 @@ class PlayerStatsTask(Task):
         
     @staticmethod
     async def track_player(player, old_membership, prev_warcounts, old_global_data, inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats) -> bool:
-        uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult=True"
+        uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult"
         try:
             stats = await Async.get(uri)
             first_key = [*stats][0]
@@ -132,13 +132,13 @@ class PlayerStatsTask(Task):
                 rank_order = dict(enumerate([None, "vip", "vipplus", "hero", "champion"]))
                 players_sorted_by_rank = sorted([*stats], key=lambda x: rank_order.get(x, -1), reverse=True) 
                 player = players_sorted_by_rank[0]
-                uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult=True"
+                uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult"
                 stats = await Async.get(uri)
         except:
             uuid = await PlayerStatsTask.get_uuid(player)
             
             try:
-                uri = f"https://api.wynncraft.com/v3/player/{uuid}?fullResult=True"
+                uri = f"https://api.wynncraft.com/v3/player/{uuid}?fullResult"
                 stats = await Async.get(uri)
             except:
                 logger.warn(f"PLAYER STATS uuid and name don't work: {player}")
