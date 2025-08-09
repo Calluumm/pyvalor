@@ -26,7 +26,7 @@ class PlayerStatsTask(Task):
                "mobsKilled": 39, "deaths": 40, "guild": 41, "Orphion's Nexus of Light": 42, "guild_rank": 43, "The Nameless Anomaly": 44, 
                "Corrupted Galleon's Graveyard": 45, "Timelost Sanctum": 46, "lastjoin": 47}
     
-    global_stats_threshold = {"g_killedMobs": 2500, "g_chestsFound": 20, "g_totalLevel": 3}
+    global_stats_threshold = {"g_mobsKilled": 2500, "g_chestsFound": 20, "g_totalLevel": 3}
     
     def __init__(self, start_after, sleep):
         super().__init__(start_after, sleep)
@@ -83,7 +83,7 @@ class PlayerStatsTask(Task):
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
         try:
-            global_data_features = ["wars", "totalLevel", "killedMobs", "chestsFound", "completedQuests"]
+            global_data_features = ["wars", "totalLevel", "mobsKilled", "chestsFound", "completedQuests"]
             global_data_dungeons_features = [*stats["globalData"]["dungeons"]["list"].keys()]
             global_data_raids_features = [*stats["globalData"]["raids"]["list"].keys()]
             global_data_pvp_features = ["kills", "deaths"]
