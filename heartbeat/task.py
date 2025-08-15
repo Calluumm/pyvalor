@@ -2,6 +2,13 @@ import asyncio
 import traceback
 import datetime
 from log import logger
+from network import Async
+
+import os
+import dotenv
+dotenv.load_dotenv()
+webhook = os.environ["JOINLEAVE"]
+
 
 class Task:
     def __init__(self, start_after, sleep):
@@ -31,6 +38,9 @@ class Task:
                 try:
                     await coro()
                 except Exception as e:
+                    tb_str_repr = '\n'.join(traceback.format_tb(e.__traceback__))
+                    await Async.post(webhook, {"content": f"Task restarted due to error: {tb_str_repr}"})
+
                     traceback.print_exception(type(e), e, e.__traceback__)
                     logger.info("Restarting (Error Occured?)")
                 await asyncio.sleep(10)

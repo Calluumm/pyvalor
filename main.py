@@ -2,6 +2,10 @@ import asyncio
 from heartbeat import Heartbeat
 import websockets
 from rpc import player_stats_updater_service
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 ev = asyncio.get_event_loop()
 
