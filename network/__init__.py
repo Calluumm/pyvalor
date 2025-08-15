@@ -2,6 +2,10 @@ import aiohttp
 import math
 import asyncio
 from typing import Any, Dict, List, Union, Callable
+import dotenv
+import os
+
+dotenv.load_dotenv()
 
 SLEEP = 3
 TRY_SLEEP = SLEEP
@@ -38,9 +42,10 @@ class Async:
     async def get(uri: str) -> Union[aiohttp.ClientResponse, None]:
         t = TRIES
         res = None
+        bearer_header = { "Authorization": f"Bearer {os.environ.get('WYNNKEY')}" }
         while t:
             try: 
-                res = await Async.session.get(uri)
+                res = await Async.session.get(uri, headers=bearer_header)
                 return await res.json()
             except Exception as e:
                 if "v3/player" in uri: raise e # TODO: wait until wynnapi fixes unhelpful error 500 messages
