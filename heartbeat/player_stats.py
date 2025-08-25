@@ -27,7 +27,21 @@ class PlayerStatsTask(Task):
                "Corrupted Galleon's Graveyard": 45, "Timelost Sanctum": 46, "lastjoin": 47}
     
     global_stats_threshold = {"g_mobsKilled": 2500, "g_chestsFound": 20, "g_totalLevel": 3}
-    
+
+    delta_nowr = {
+        "c_logins", "c_playtime", "c_deaths", "c_discoveries",
+                "g_totalLevel", "g_mobsKilled", "g_chestsFound", "g_completedQuests",
+        "g_kills", "g_deaths", 
+        "g_Decrepit Sewers", "g_Infested Pit", "g_Lost Sanctuary", "g_Underworld Crypt",
+        "g_Sand-Swept Tomb", "g_Ice Barrows", "g_Undergrowth Ruins", "g_Galleon's Graveyard",
+        "g_Fallen Factory", "g_Eldritch Outlook", "g_Corrupted Decrepit Sewers", 
+        "g_Corrupted Infested Pit", "g_Corrupted Lost Sanctuary", "g_Corrupted Underworld Crypt",
+        "g_Corrupted Sand-Swept Tomb", "g_Corrupted Ice Barrows", "g_Corrupted Undergrowth Ruins",
+        "g_Corrupted Galleon's Graveyard", "g_Timelost Sanctum",
+        "c_alchemism", "c_armouring", "c_cooking", "c_farming", "c_fishing", 
+        "c_jeweling", "c_mining", "c_scribing", "c_tailoring", "c_weaponsmithing", 
+        "c_woodcutting", "c_woodworking",
+    }
     def __init__(self, start_after, sleep):
         super().__init__(start_after, sleep)
         
@@ -75,10 +89,10 @@ class PlayerStatsTask(Task):
             feat_name = f"{prefix}_{feat}"
             new_val = kv_dict[feat]
             delta_val = (new_val - old_player_global_stats[feat_name]) if old_player_global_stats and feat_name in old_player_global_stats else 0
-            if delta_val > 0:
+            update_player_global_stats.append((uuid, feat_name, new_val))
+            if delta_val > 0 and feat_name not in PlayerStatsTask.delta_nowr:
                 if not feat_name in PlayerStatsTask.global_stats_threshold or delta_val >= PlayerStatsTask.global_stats_threshold[feat_name]:
                     deltas_player_global_stats.append((uuid, guild, now, feat_name, delta_val))
-            update_player_global_stats.append((uuid, feat_name, new_val))
         
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
