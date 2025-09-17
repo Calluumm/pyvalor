@@ -48,23 +48,30 @@ class GuildActivityTask(Task):
                 Connection.execute("DELETE FROM guild_member_cache WHERE guild='Titans Valor'")
                 Connection.execute("INSERT INTO guild_member_cache VALUES "+",".join(f"('Titans Valor','{x}')" for x in current_guild_members))
                 
-                online_all = await Async.get("https://api.wynncraft.com/v3/player")
-                online_all = {x for x in online_all["players"]}
-
-                inserts = []
-
-                # get cached members
-                cached = {m: g for g, m in Connection.execute("SELECT * FROM guild_member_cache")}
-                guilds = {g[0] for g in Connection.execute("SELECT * FROM guild_list")}
-                guild_member_cnt = {g: 0 for g in guilds}
+                # Get guild list and fetch online counts directly from guild endpoints
+                guilds = [g[0] for g in Connection.execute("SELECT * FROM guild_list")]
+                guild_member_cnt = {}
                 
-                for m in cached.keys() & online_all:
-                    if not cached[m] in guild_member_cnt: continue
-                    guild_member_cnt[cached[m]] += 1
+                for guild in guilds:
+                    try:
+                        guild_url = f"https://api.wynncraft.com/v3/guild/{guild.replace(' ', '%20')}"
+                        guild_response = await Async.get(guild_url)
+                        if "online" in guild_response:
+                            guild_member_cnt[guild] = guild_response["online"]
+                        else:
+                            guild_member_cnt[guild] = 0
+                    except Exception as e:
+                        logger.error(f"Failed to fetch online count for guild {guild}: {e}")
+                        guild_member_cnt[guild] = 0
 
                 now = int(time.time())
-                Connection.execute("INSERT INTO guild_member_count VALUES" +
-                    ','.join(f"(\"{guild}\", {guild_member_cnt[guild]}, {now})" for guild in guild_member_cnt))
+                if guild_member_cnt:
+                    insert_values = ','.join(f"(\"{guild}\", {guild_member_cnt[guild]}, {now})" for guild in guild_member_cnt)
+                    if insert_values:
+                        Connection.execute("INSERT INTO guild_member_count VALUES " + insert_values)
+                        logger.info(f"Inserted guild member counts for {len(guild_member_cnt)} guilds")
+                else:
+                    logger.info("No guild member data to insert")
 
                 end = time.time()
                 logger.info("GUILD ACTIVITY TASK"+f" {end-start}s")
