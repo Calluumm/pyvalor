@@ -27,6 +27,32 @@ class PlayerStatsTask(Task):
                "Corrupted Galleon's Graveyard": 45, "Timelost Sanctum": 46, "lastjoin": 47}
     
     global_stats_threshold = {"g_mobsKilled": 2500, "g_chestsFound": 20, "g_totalLevel": 3}
+
+    #Thresholds for un-privating
+    delta_smoothing_threshold = {
+        "g_completedQuests": 100,
+        "g_wars": 200,
+        "c_playtime": 500,
+        "g_Nest of the Grootslangs": 50,
+        "g_The Canyon Colossus": 50,
+        "g_Orphion's Nexus of Light": 50,
+        "g_The Nameless Anomaly": 50,
+    }
+
+    delta_nowr = {
+        "c_logins", "c_playtime", "c_deaths", "c_discoveries",
+                "g_totalLevel", "g_mobsKilled", "g_chestsFound", "g_completedQuests",
+        "g_kills", "g_deaths", 
+        "g_Decrepit Sewers", "g_Infested Pit", "g_Lost Sanctuary", "g_Underworld Crypt",
+        "g_Sand-Swept Tomb", "g_Ice Barrows", "g_Undergrowth Ruins", "g_Galleon's Graveyard",
+        "g_Fallen Factory", "g_Eldritch Outlook", "g_Corrupted Decrepit Sewers", 
+        "g_Corrupted Infested Pit", "g_Corrupted Lost Sanctuary", "g_Corrupted Underworld Crypt",
+        "g_Corrupted Sand-Swept Tomb", "g_Corrupted Ice Barrows", "g_Corrupted Undergrowth Ruins",
+        "g_Corrupted Galleon's Graveyard", "g_Timelost Sanctum",
+        "c_alchemism", "c_armouring", "c_cooking", "c_farming", "c_fishing", 
+        "c_jeweling", "c_mining", "c_scribing", "c_tailoring", "c_weaponsmithing", 
+        "c_woodcutting", "c_woodworking",
+    }
     
     def __init__(self, start_after, sleep):
         super().__init__(start_after, sleep)
@@ -69,54 +95,131 @@ class PlayerStatsTask(Task):
         return curr_xp
 
     @staticmethod
+    def get_last_delta_timestamp(uuid, feat_name):
+        """
+        Get the timestamp of the last delta record for a player and feature.
+        Returns the timestamp or defaults to 3 months ago if no records exist.
+        """
+        try:
+            result = Connection.execute(
+                "SELECT MAX(time) FROM player_delta_record WHERE uuid = ? AND feature = ?", 
+                prep_values=[uuid, feat_name]
+            )
+            if result and result[0][0]:
+                return result[0][0]
+            else:
+                return time.time() - (90 * 24 * 3600)
+        except Exception as e:
+            logger.warning(f"Error getting last delta timestamp for {uuid}, {feat_name}: {e}")
+            return time.time() - (90 * 24 * 3600)
+
+    @staticmethod
+    def create_smoothed_deltas(uuid, guild, feat_name, delta_val, now, last_timestamp):
+        """
+        Create smoothed delta records distributed evenly between last_timestamp and now.
+        Returns a list of (uuid, guild, timestamp, feat_name, smoothed_delta_val) tuples.
+        """
+        if delta_val <= 0 or now <= last_timestamp:
+            return []
+        
+        time_span_seconds = now - last_timestamp
+        time_span_days = max(1, time_span_seconds / (24 * 3600))
+        
+        num_days = min(int(time_span_days), 90) #3 months if we dk their time
+        daily_delta = delta_val / num_days
+        
+        smoothed_deltas = []
+        for i in range(num_days):
+            timestamp = last_timestamp + (i + 1) * (time_span_seconds / num_days)
+            smoothed_deltas.append((uuid, guild, timestamp, feat_name, daily_delta))
+        
+        return smoothed_deltas
+
+    @staticmethod
     def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
         old_player_global_stats = old_global_stats.get(uuid)
         for feat in feature_list:
             feat_name = f"{prefix}_{feat}"
             new_val = kv_dict[feat]
             delta_val = (new_val - old_player_global_stats[feat_name]) if old_player_global_stats and feat_name in old_player_global_stats else 0
-            if delta_val > 0:
-                if not feat_name in PlayerStatsTask.global_stats_threshold or delta_val >= PlayerStatsTask.global_stats_threshold[feat_name]:
-                    deltas_player_global_stats.append((uuid, guild, now, feat_name, delta_val))
             update_player_global_stats.append((uuid, feat_name, new_val))
+            
+            if delta_val > 0 and feat_name not in PlayerStatsTask.delta_nowr:
+                if not feat_name in PlayerStatsTask.global_stats_threshold or delta_val >= PlayerStatsTask.global_stats_threshold[feat_name]:
+                    if feat_name in PlayerStatsTask.delta_smoothing_threshold and delta_val >= PlayerStatsTask.delta_smoothing_threshold[feat_name]:
+                        logger.info(f"Large delta detected for {uuid} {feat_name}: {delta_val}, applying smoothing")
+                        last_timestamp = PlayerStatsTask.get_last_delta_timestamp(uuid, feat_name)
+                        smoothed_deltas = PlayerStatsTask.create_smoothed_deltas(uuid, guild, feat_name, delta_val, now, last_timestamp)
+                        deltas_player_global_stats.extend(smoothed_deltas)
+                    else:
+                        deltas_player_global_stats.append((uuid, guild, now, feat_name, delta_val))
         
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
         try:
+            # Check if required data exists
+            if not stats or not stats.get("globalData") or not stats.get("characters"):
+                logger.warning(f"Missing required data for player {stats.get('uuid', 'unknown')}")
+                return
+                
             global_data_features = ["wars", "totalLevel", "mobsKilled", "chestsFound", "completedQuests"]
-            global_data_dungeons_features = [*stats["globalData"]["dungeons"]["list"].keys()]
-            global_data_raids_features = [*stats["globalData"]["raids"]["list"].keys()]
+            
+            # Safely get dungeon and raid features
+            dungeons_list = stats["globalData"].get("dungeons", {}).get("list", {})
+            raids_list = stats["globalData"].get("raids", {}).get("list", {})
+            
+            global_data_dungeons_features = list(dungeons_list.keys()) if dungeons_list else []
+            global_data_raids_features = list(raids_list.keys()) if raids_list else []
             global_data_pvp_features = ["kills", "deaths"]
             now = time.time()
 
             uuid = stats["uuid"]
-            guild = stats["guild"]["name"] if stats["guild"] else "None"
+            guild = stats["guild"]["name"] if stats.get("guild") else "None"
             PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats["globalData"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats["globalData"]["dungeons"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats["globalData"]["raids"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats["globalData"]["pvp"], old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, dungeons_list, old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, raids_list, old_global_data, update_player_global_stats, deltas_player_global_stats)
+            
+            # Safely handle PVP data
+            pvp_data = stats["globalData"].get("pvp", {})
+            if pvp_data:
+                PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, pvp_data, old_global_data, update_player_global_stats, deltas_player_global_stats)
 
             # Sum character-exclusive stats to get new global stats
-            character_uuids = [*stats["characters"].keys()]
+            characters = stats.get("characters", {})
+            if not characters:
+                logger.warning(f"No character data for player {uuid}")
+                return
+                
+            character_uuids = list(characters.keys())
             character_features = ["playtime", "logins", "deaths", "discoveries"]
 
             character_stats = {}
             character_stats["professions"] = {}
 
             for character_uuid in character_uuids:
-                character_data = stats["characters"][character_uuid]
+                character_data = characters.get(character_uuid, {})
+                if not character_data:
+                    continue
 
                 for character_feature in character_features:
                     character_stats[character_feature] = character_stats.get(character_feature, 0) + PlayerStatsTask.null_or_value(character_data.get(character_feature))
                 
-                for profession in [*stats["characters"][character_uuid]["professions"].keys()]:
-                    character_prof_data = character_data.get("professions", {}).get(profession)
-                    if character_prof_data is None: continue
-                    character_prof_xp = PlayerStatsTask.lvl_pct_to_xp(character_prof_data.get("level", 1), PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100)
-                    character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
+                # Safely handle professions
+                character_professions = character_data.get("professions", {})
+                if character_professions:
+                    for profession in character_professions.keys():
+                        character_prof_data = character_professions.get(profession)
+                        if character_prof_data is None: 
+                            continue
+                        character_prof_xp = PlayerStatsTask.lvl_pct_to_xp(
+                            character_prof_data.get("level", 1), 
+                            PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100
+                        )
+                        character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
 
             PlayerStatsTask.append_player_global_stats_feature(character_features, now, uuid, guild, character_stats, old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
-            PlayerStatsTask.append_player_global_stats_feature([*character_stats["professions"].keys()], now, uuid, guild, character_stats["professions"], old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
+            if character_stats.get("professions"):
+                PlayerStatsTask.append_player_global_stats_feature(list(character_stats["professions"].keys()), now, uuid, guild, character_stats["professions"], old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
 
         except Exception as e:
             logger.exception(e)
@@ -127,25 +230,59 @@ class PlayerStatsTask(Task):
         uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult"
         try:
             stats = await Async.get(uri)
-            first_key = [*stats][0]
-            if "storedName" in stats[first_key]: # there are multiple players so select the first any with a rank
-                rank_order = dict(enumerate([None, "vip", "vipplus", "hero", "champion"]))
-                players_sorted_by_rank = sorted([*stats], key=lambda x: rank_order.get(x, -1), reverse=True) 
-                player = players_sorted_by_rank[0]
-                uri = f"https://api.wynncraft.com/v3/player/{player}?fullResult"
-                stats = await Async.get(uri)
-        except:
+            if stats is None:
+                logger.warning(f"API returned None for player {player}")
+                return False
+            
+            # Handle API error responses
+            if isinstance(stats, dict) and 'error' in stats:
+                if stats['error'] == 'MultipleObjectsReturned' and 'objects' in stats:
+                    # Handle multiple players - pick the one with the highest rank
+                    players = stats['objects']
+                    rank_order = {"champion": 4, "hero": 3, "vipplus": 2, "vip": 1, None: 0}
+                    
+                    best_player_id = max(players.keys(), 
+                                       key=lambda x: rank_order.get(players[x].get('supportRank'), 0))
+                    
+                    logger.info(f"Multiple players found for {player}, using {best_player_id}")
+                    uri = f"https://api.wynncraft.com/v3/player/{best_player_id}?fullResult"
+                    stats = await Async.get(uri)
+                    if stats is None:
+                        logger.warning(f"API returned None for player UUID {best_player_id}")
+                        return False
+                else:
+                    logger.warning(f"API error for player {player}: {stats.get('error', 'Unknown error')}")
+                    return False
+            
+            # Legacy handling for old format multiple players response
+            elif isinstance(stats, dict) and len(stats) > 1:
+                first_key = list(stats.keys())[0]
+                if "storedName" in stats.get(first_key, {}): # there are multiple players so select the first any with a rank
+                    rank_order = dict(enumerate([None, "vip", "vipplus", "hero", "champion"]))
+                    players_sorted_by_rank = sorted(stats.keys(), key=lambda x: rank_order.get(stats[x].get('supportRank'), -1), reverse=True) 
+                    player_id = players_sorted_by_rank[0]
+                    uri = f"https://api.wynncraft.com/v3/player/{player_id}?fullResult"
+                    stats = await Async.get(uri)
+                    if stats is None:
+                        logger.warning(f"API returned None for player ID {player_id} on second attempt")
+                        return False
+        except Exception as e:
+            logger.warning(f"API call failed for player {player}: {e}")
             uuid = await PlayerStatsTask.get_uuid(player)
             
             try:
                 uri = f"https://api.wynncraft.com/v3/player/{uuid}?fullResult"
                 stats = await Async.get(uri)
-            except:
-                logger.warn(f"PLAYER STATS uuid and name don't work: {player}")
+                if stats is None:
+                    logger.warning(f"API returned None for player UUID {uuid}")
+                    return False
+            except Exception as e:
+                logger.warning(f"PLAYER STATS uuid and name don't work: {player}, error: {e}")
                 return False
 
         row = [0]*len(PlayerStatsTask.idx)
         if not stats or not "uuid" in stats:
+            logger.warning(f"Invalid stats response for player {player}: {stats}")
             return False
 
         uuid = stats["uuid"]
@@ -180,7 +317,10 @@ class PlayerStatsTask(Task):
         row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
         row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
 
-        character_data = stats["characters"]
+        character_data = stats.get("characters", {})
+        if character_data is None:
+            character_data = {}
+            
         for cl_name in character_data:
             cl = character_data[cl_name]
             cl_type = cl["type"]
@@ -240,6 +380,11 @@ class PlayerStatsTask(Task):
         online_all = {name for name in online_all.get("players", [])}
         online_all = online_all | set(force_player_list)
 
+        # LIMIT PROCESSING - only take first 100 players for testing
+        if len(online_all) > 100:
+            logger.info(f"Limiting player processing from {len(online_all)} to 100 players")
+            online_all = set(list(online_all)[:100])
+
         already_uuid = [x for x in online_all if '-' in x]
         online_all = online_all - set(already_uuid)
 
@@ -247,37 +392,48 @@ class PlayerStatsTask(Task):
         search_players = list(online_all | set(queued_players))[::-1]
 
         # search_players_clause = '(' + ','.join(f'"{name}"' for name in online_all) + ')'
-        search_players_clause = '(' + ('%s,'*len(online_all))[:-1] + ')'
+        # Convert to SQLite parameter syntax (? instead of %s)
+        search_players_clause = '(' + ('?,'*len(online_all))[:-1] + ')' if online_all else '()'
         # search_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in queued_players) + ')'
-        search_uuids_clause = '(' + ('%s,'*len(queued_players))[:-1] + ')'
+        search_uuids_clause = '(' + ('?,'*len(queued_players))[:-1] + ')' if queued_players else '()'
 
         existing_player_uuids = []
         if online_all:
-            existing_player_uuids = [x[0] for x in 
-                Connection.execute(f"SELECT uuid FROM uuid_name WHERE name IN {search_players_clause}" + \
-                                (f" OR uuid IN {search_uuids_clause}" if queued_players else ""), prep_values=list(online_all) + queued_players)]
+            query_params = list(online_all)
+            query = f"SELECT uuid FROM uuid_name WHERE name IN {search_players_clause}"
+            if queued_players:
+                query += f" OR uuid IN {search_uuids_clause}"
+                query_params.extend(queued_players)
+            existing_player_uuids = [x[0] for x in Connection.execute(query, prep_values=query_params)]
         
         existing_player_uuids.extend(already_uuid)
-        # existing_uuids_clause = '(' + ','.join(f'"{uuid}"' for uuid in existing_player_uuids) + ')'
-        existing_uuids_clause = '(' + ("%s,"*len(existing_player_uuids))[:-1] + ')'
+        # Convert to SQLite parameter syntax
+        existing_uuids_clause = '(' + ("?,"*len(existing_player_uuids))[:-1] + ')' if existing_player_uuids else '()'
         # search_players = [x[0] for x in Connection.execute("SELECT * FROM `player_stats` ORDER BY playtime DESC LIMIT 10000;")][5000:]
 
         old_membership = {}
-        res = Connection.execute(f"SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != '' AND uuid IN {existing_uuids_clause}",
-                                prep_values=existing_player_uuids)
-        for uuid, guild, guild_rank in res:
-            old_membership[uuid] = [guild, guild_rank]
+        if existing_player_uuids:  # Only query if we have UUIDs
+            res = Connection.execute(f"SELECT uuid, guild, guild_rank FROM `player_stats` WHERE guild IS NOT NULL and guild != 'None' and guild != '' AND uuid IN {existing_uuids_clause}",
+                                    prep_values=existing_player_uuids)
+            for uuid, guild, guild_rank in res:
+                old_membership[uuid] = [guild, guild_rank]
 
-        res = Connection.execute(f"SELECT uuid, character_id, time, warcount FROM cumu_warcounts WHERE uuid IN {existing_uuids_clause}",
-                                prep_values=existing_player_uuids)
+        if existing_player_uuids:  # Only query if we have UUIDs
+            res = Connection.execute(f"SELECT uuid, character_id, time, warcount FROM cumu_warcounts WHERE uuid IN {existing_uuids_clause}",
+                                    prep_values=existing_player_uuids)
+        else:
+            res = []
         prev_warcounts = {}
         for uuid, character_id, _, warcount in res:
             if not uuid in prev_warcounts:
                 prev_warcounts[uuid] = {}
             prev_warcounts[uuid][character_id] = warcount
         
-        res = Connection.execute(f"SELECT uuid, label, value FROM player_global_stats WHERE uuid IN {existing_uuids_clause}",
-                                prep_values=existing_player_uuids)
+        if existing_player_uuids:  # Only query if we have UUIDs
+            res = Connection.execute(f"SELECT uuid, label, value FROM player_global_stats WHERE uuid IN {existing_uuids_clause}",
+                                    prep_values=existing_player_uuids)
+        else:
+            res = []
         old_global_data = {}
         for uuid, label, value in res:
             if not uuid in old_global_data:
