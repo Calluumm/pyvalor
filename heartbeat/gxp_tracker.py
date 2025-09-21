@@ -90,21 +90,18 @@ class GXPTrackerTask(Task):
 
                             if gxp_delta > 0:
                                 member_uuid = member_fields["uuid"]
-
-                                if guild_level >= 100 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
-                                    num_raids = gxp_delta // count_raid_threshold
-                                    insert_raid_deltas.append((member_uuid, guild, start, num_raids))
-                                    
                                 insert_gxp_deltas.append((member_uuid, gxp_delta))
 
-                    if 0 < len(insert_gxp_deltas) < 4:
-                        logger.info(f"""Skipping raid count for {", ".join([i[0] for i in insert_gxp_deltas])} ({guild}) due to less than 4 members in the cycle""")
-                        insert_gxp_deltas = []
+                    if len(insert_gxp_deltas) >= 3:
+                        for member_uuid, gxp_delta in insert_gxp_deltas:
+                            if guild_level >= 100 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
+                                num_raids = gxp_delta // count_raid_threshold
+                                insert_raid_deltas.append((member_uuid, guild, start, num_raids))
 
                     if guild == "Titans Valor":
 
                         query = Connection.execute(f"SELECT * FROM user_total_xps")
-                        uuid_to_xp = {x[4]: x[:4] for x in query}  # name, xp, lastxp, guild
+                        uuid_to_xp = {x[4]: x[:4] for x in query} 
 
                         new_queries = []
                         new_members = []
