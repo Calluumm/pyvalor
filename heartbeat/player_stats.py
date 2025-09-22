@@ -38,6 +38,8 @@ class PlayerStatsTask(Task):
         "g_Orphion's Nexus of Light": 50,
         "g_The Nameless Anomaly": 50,
     }
+    
+    warsmooththresh = 50
 
     delta_nowr = {
         "c_logins", "c_playtime", "c_deaths", "c_discoveries",
@@ -110,18 +112,29 @@ class PlayerStatsTask(Task):
             return time.time() - (90 * 24 * 3600)
 
     @staticmethod
+    def get_last_war_delta_timestamp(uuid, character_id):
+        try:
+            result = Connection.execute(
+                "SELECT MAX(time) FROM delta_warcounts WHERE uuid = ? AND character_id = ?", 
+                prep_values=[uuid, character_id]
+            )
+            if result and result[0][0]:
+                return result[0][0]
+            else:
+                return time.time() - (90 * 24 * 3600)
+        except Exception as e:
+            logger.warning(f"Error getting last war delta timestamp for {uuid}, {character_id}: {e}")
+            return time.time() - (90 * 24 * 3600)
+
+    @staticmethod
     def create_smoothed_deltas(uuid, guild, feat_name, delta_val, now, last_timestamp):
-        """
-        Create smoothed delta records distributed evenly between last_timestamp and now.
-        Returns a list of (uuid, guild, timestamp, feat_name, smoothed_delta_val) tuples.
-        """
         if delta_val <= 0 or now <= last_timestamp:
             return []
         
         time_span_seconds = now - last_timestamp
         time_span_days = max(1, time_span_seconds / (24 * 3600))
         
-        num_days = min(int(time_span_days), 90) #3mo max
+        num_days = min(int(time_span_days), 90)
         daily_delta = delta_val / num_days
         
         smoothed_deltas = []
@@ -130,6 +143,23 @@ class PlayerStatsTask(Task):
             smoothed_deltas.append((uuid, guild, timestamp, feat_name, daily_delta))
         
         return smoothed_deltas
+
+    @staticmethod
+    def create_smoothed_war_deltas(uuid, character_id, cl_type, war_delta, now, last_timestamp):
+        if war_delta <= 0 or now <= last_timestamp:
+            return []
+        
+        time_span_seconds = now - last_timestamp
+        time_span_days = max(1, time_span_seconds / (24 * 3600))
+        
+        num_days = min(int(time_span_days), 90) #3mo max, idk could go longer but idt itll matter
+        daily_war_delta = war_delta / num_days
+        
+        smoothed_war_deltas = []
+        for i in range(num_days):
+            smoothed_war_deltas.append((uuid, character_id, daily_war_delta, cl_type))
+        
+        return smoothed_war_deltas
 
     @staticmethod
     def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
@@ -261,7 +291,16 @@ class PlayerStatsTask(Task):
                     old_warcount = prev_warcounts[uuid][cl_name]
                     # if war count hasn't changed don't update a thing
                     if warcount != old_warcount:
-                        inserts_war_deltas.append((uuid, cl_name, warcount-old_warcount, cl_type))
+                        war_delta = warcount - old_warcount
+                        curr_time = time.time()
+                        
+                        if war_delta >= PlayerStatsTask.warsmooththresh:
+                            last_timestamp = PlayerStatsTask.get_last_war_delta_timestamp(uuid, cl_name)
+                            smoothed_war_deltas = PlayerStatsTask.create_smoothed_war_deltas(uuid, cl_name, cl_type, war_delta, curr_time, last_timestamp)
+                            inserts_war_deltas.extend(smoothed_war_deltas)
+                        else:
+                            inserts_war_deltas.append((uuid, cl_name, war_delta, cl_type))
+                        
                         inserts_war_update.append((uuid, cl_name, warcount, cl_type))
                 else:
                     inserts_war_update.append((uuid, cl_name, warcount, cl_type))
