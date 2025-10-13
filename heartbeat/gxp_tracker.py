@@ -10,6 +10,8 @@ import math
 from log import logger
 import math
 
+EXCEPTIONS = ["Titans Valor", "The Aquarium", "Avicia", "Empire of Sindria", "KongoBoys", "Paladins United", "Nerfuria", "Empire of Sindria", "Eden"]
+
 class GXPTrackerTask(Task):
     def __init__(self, start_after, sleep):
         super().__init__(start_after, sleep)
@@ -46,7 +48,12 @@ class GXPTrackerTask(Task):
                 start = time.time()
 
                 guild_names = Connection.execute("SELECT guild, priority FROM guild_autotrack_active ORDER BY priority DESC LIMIT 50;")
-
+                
+                existing = {g for g, _ in guild_names}
+                for eg in EXCEPTIONS:
+                    if eg not in existing:
+                        guild_names.insert(0, (eg, 3000))
+                
                 res = Connection.execute("SELECT uuid, value FROM player_global_stats WHERE label='gu_gxp'")
                 prev_member_gxps = {}
                 for uuid, value in res:
