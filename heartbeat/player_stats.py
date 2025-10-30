@@ -191,10 +191,10 @@ class PlayerStatsTask(Task):
 
             uuid = stats["uuid"]
             guild = stats["guild"]["name"] if stats["guild"] else "None"
-            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats["globalData"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats["globalData"]["dungeons"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats["globalData"]["raids"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats["globalData"]["pvp"], old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats.get("globalData", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats.get("globalData", {}).get("dungeons", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats.get("globalData", {}).get("raids", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats.get("globalData", {}).get("pvp", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
 
             # Sum character-exclusive stats to get new global stats
             character_uuids = [*stats["characters"].keys()]
