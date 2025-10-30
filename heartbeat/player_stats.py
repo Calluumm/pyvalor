@@ -251,6 +251,15 @@ class PlayerStatsTask(Task):
         uuid = stats["uuid"]
         row[PlayerStatsTask.idx["uuid"]] = uuid
         player = stats["username"] # make sure player becomes username
+        
+        guild = stats.get("guild", {}).get("name") if stats.get("guild") else None
+        guild_rank = stats.get("guild", {}).get("rank") if stats.get("guild") else None
+        old_guild, old_rank = old_membership.get(uuid, [None, None])
+        if guild != old_guild:
+            inserts_guild_log.append(f"('{uuid}', '{old_guild}', '{old_rank}', '{guild}', {int(time.time())})")
+
+        row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
+        row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
 
         if not "lastJoin" in stats or stats["lastJoin"] is None: #setup handling for private profiles returning null's rather than true/false
             return False
