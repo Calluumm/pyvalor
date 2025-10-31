@@ -191,10 +191,10 @@ class PlayerStatsTask(Task):
 
             uuid = stats["uuid"]
             guild = stats["guild"]["name"] if stats["guild"] else "None"
-            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats["globalData"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats["globalData"]["dungeons"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats["globalData"]["raids"]["list"], old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats["globalData"]["pvp"], old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats.get("globalData", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats.get("globalData", {}).get("dungeons", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats.get("globalData", {}).get("raids", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats.get("globalData", {}).get("pvp", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
 
             # Sum character-exclusive stats to get new global stats
             character_uuids = [*stats["characters"].keys()]
@@ -251,19 +251,30 @@ class PlayerStatsTask(Task):
         uuid = stats["uuid"]
         row[PlayerStatsTask.idx["uuid"]] = uuid
         player = stats["username"] # make sure player becomes username
+        
+        guild = stats.get("guild", {}).get("name") if stats.get("guild") else None
+        guild_rank = stats.get("guild", {}).get("rank") if stats.get("guild") else None
+        old_guild, old_rank = old_membership.get(uuid, [None, None])
+        if guild != old_guild:
+            inserts_guild_log.append(f"('{uuid}', '{old_guild}', '{old_rank}', '{guild}', {int(time.time())})")
 
-        if not "lastJoin" in stats or stats["lastJoin"] is None: #setup handling for private profiles returning null's rather than true/false
-            return False
+        row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
+        row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
+        if "lastJoin" in stats:
+            try:
+                row[PlayerStatsTask.idx["lastjoin"]] = datetime.datetime.fromisoformat(stats["lastJoin"][:-1]).timestamp()
+            except Exception:
+                row[PlayerStatsTask.idx["lastjoin"]] = 0
+        else:
+            row[PlayerStatsTask.idx["lastjoin"]] = 0
 
-        row[PlayerStatsTask.idx["lastjoin"]] = datetime.datetime.fromisoformat(stats["lastJoin"][:-1]).timestamp()
-
-        if not "firstJoin" in stats or stats["firstJoin"] is None: 
-            return False
-
-        row[PlayerStatsTask.idx["firstjoin"]] = datetime.datetime.fromisoformat(stats["firstJoin"][:-1]).timestamp()
-
-        if not "characters" in stats or stats["characters"] is None:
-            return False
+        if "firstJoin" in stats:
+            try:
+                row[PlayerStatsTask.idx["firstjoin"]] = datetime.datetime.fromisoformat(stats["firstJoin"][:-1]).timestamp()
+            except Exception:
+                row[PlayerStatsTask.idx["firstjoin"]] = 0
+        else:
+            row[PlayerStatsTask.idx["firstjoin"]] = 0
         
         PlayerStatsTask.append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats)
 
