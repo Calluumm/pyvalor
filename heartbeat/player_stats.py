@@ -166,7 +166,7 @@ class PlayerStatsTask(Task):
         old_player_global_stats = old_global_stats.get(uuid)
         for feat in feature_list:
             feat_name = f"{prefix}_{feat}"
-            new_val = kv_dict[feat]
+            new_val = kv_dict.get(feat, 0)
             delta_val = (new_val - old_player_global_stats[feat_name]) if old_player_global_stats and feat_name in old_player_global_stats else 0
             update_player_global_stats.append((uuid, feat_name, new_val))
             
@@ -182,45 +182,51 @@ class PlayerStatsTask(Task):
         
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
+        global_data = stats.get("globalData", {}) if isinstance(stats, dict) else {}
+        global_data_features = ["wars", "totalLevel", "mobsKilled", "chestsFound", "completedQuests"]
+        dungeons_list = global_data.get("dungeons", {}).get("list", {}) if isinstance(global_data, dict) else {}
+        raids_list = global_data.get("raids", {}).get("list", {}) if isinstance(global_data, dict) else {}
+        pvp_data = global_data.get("pvp", {}) if isinstance(global_data, dict) else {}
+        global_data_dungeons_features = list(dungeons_list.keys()) if isinstance(dungeons_list, dict) else []
+        global_data_raids_features = list(raids_list.keys()) if isinstance(raids_list, dict) else []
+        global_data_pvp_features = ["kills", "deaths"]
+        now = time.time()
+
+        uuid = stats.get("uuid", "unknown") if isinstance(stats, dict) else "unknown"
+        guild = stats.get("guild", {}).get("name") if isinstance(stats, dict) else None
+
         try:
-            global_data_features = ["wars", "totalLevel", "mobsKilled", "chestsFound", "completedQuests"]
-            global_data_dungeons_features = [*stats["globalData"]["dungeons"]["list"].keys()]
-            global_data_raids_features = [*stats["globalData"]["raids"]["list"].keys()]
-            global_data_pvp_features = ["kills", "deaths"]
-            now = time.time()
-
-            uuid = stats["uuid"]
-            guild = stats["guild"]["name"] if stats["guild"] else "None"
-            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, stats.get("globalData", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, stats.get("globalData", {}).get("dungeons", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, stats.get("globalData", {}).get("raids", {}).get("list", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
-            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, stats.get("globalData", {}).get("pvp", {}), old_global_data, update_player_global_stats, deltas_player_global_stats)
-
-            # Sum character-exclusive stats to get new global stats
-            character_uuids = [*stats["characters"].keys()]
-            character_features = ["playtime", "logins", "deaths", "discoveries"]
-
-            character_stats = {}
-            character_stats["professions"] = {}
-
-            for character_uuid in character_uuids:
-                character_data = stats["characters"][character_uuid]
-
-                for character_feature in character_features:
-                    character_stats[character_feature] = character_stats.get(character_feature, 0) + PlayerStatsTask.null_or_value(character_data.get(character_feature))
-                
-                for profession in [*stats["characters"][character_uuid]["professions"].keys()]:
-                    character_prof_data = character_data.get("professions", {}).get(profession)
-                    if character_prof_data is None: continue
-                    character_prof_xp = PlayerStatsTask.lvl_pct_to_xp(character_prof_data.get("level", 1), PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100)
-                    character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
-
-            PlayerStatsTask.append_player_global_stats_feature(character_features, now, uuid, guild, character_stats, old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
-            PlayerStatsTask.append_player_global_stats_feature([*character_stats["professions"].keys()], now, uuid, guild, character_stats["professions"], old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
-
+            PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, global_data, old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_dungeons_features, now, uuid, guild, dungeons_list, old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_raids_features, now, uuid, guild, raids_list, old_global_data, update_player_global_stats, deltas_player_global_stats)
+            PlayerStatsTask.append_player_global_stats_feature(global_data_pvp_features, now, uuid, guild, pvp_data, old_global_data, update_player_global_stats, deltas_player_global_stats)
         except Exception as e:
             logger.exception(e)
-            logger.warn(f"PLAYER STATS could not append global data for {stats['uuid']}")
+
+        # Sum character-exclusive stats to get new global stats (handle missing characters)
+        characters = stats.get("characters", {}) if isinstance(stats, dict) else {}
+        character_uuids = list(characters.keys()) if isinstance(characters, dict) else []
+        character_features = ["playtime", "logins", "deaths", "discoveries"]
+
+        character_stats = {"professions": {}}
+
+        for character_uuid in character_uuids:
+            character_data = characters.get(character_uuid, {})
+            for character_feature in character_features:
+                character_stats[character_feature] = character_stats.get(character_feature, 0) + PlayerStatsTask.null_or_value(character_data.get(character_feature))
+
+            professions = character_data.get("professions", {}) or {}
+            for profession, character_prof_data in professions.items():
+                if character_prof_data is None:
+                    continue
+                character_prof_xp = PlayerStatsTask.lvl_pct_to_xp(character_prof_data.get("level", 1), PlayerStatsTask.null_or_value(character_prof_data.get("xpPercent")) / 100)
+                character_stats["professions"][profession] = character_stats["professions"].get(profession, 0) + character_prof_xp
+
+        try:
+            PlayerStatsTask.append_player_global_stats_feature(character_features, now, uuid, guild, character_stats, old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
+            PlayerStatsTask.append_player_global_stats_feature(list(character_stats["professions"].keys()), now, uuid, guild, character_stats["professions"], old_global_data, update_player_global_stats, deltas_player_global_stats, "c")
+        except Exception:
+            logger.exception("Error appending character-based global stats for %s", uuid)
         
     @staticmethod
     async def track_player(player, old_membership, prev_warcounts, old_global_data, inserts_war_update, inserts_war_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats) -> bool:
@@ -251,7 +257,7 @@ class PlayerStatsTask(Task):
         uuid = stats["uuid"]
         row[PlayerStatsTask.idx["uuid"]] = uuid
         player = stats["username"] # make sure player becomes username
-        
+
         guild = stats.get("guild", {}).get("name") if stats.get("guild") else None
         guild_rank = stats.get("guild", {}).get("rank") if stats.get("guild") else None
         old_guild, old_rank = old_membership.get(uuid, [None, None])
@@ -260,6 +266,7 @@ class PlayerStatsTask(Task):
 
         row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
         row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
+
         if "lastJoin" in stats:
             try:
                 row[PlayerStatsTask.idx["lastjoin"]] = datetime.datetime.fromisoformat(stats["lastJoin"][:-1]).timestamp()
@@ -275,23 +282,14 @@ class PlayerStatsTask(Task):
                 row[PlayerStatsTask.idx["firstjoin"]] = 0
         else:
             row[PlayerStatsTask.idx["firstjoin"]] = 0
-        
-        PlayerStatsTask.append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats)
 
-        guild = None
-        guild_rank = None
-        if stats.get("guild") and isinstance(stats["guild"], dict):
-            guild = stats["guild"].get("name")
-            guild_rank = stats["guild"].get("rank")
-        
-        old_guild, old_rank = old_membership.get(uuid, [None, None])
-        if guild != old_guild:
-            inserts_guild_log.append(f"('{uuid}', '{old_guild}', '{old_rank}', '{guild}', {time.time()})")
+        try:
+            PlayerStatsTask.append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats)
+        except Exception as e:
+            # Defensive: do not let malformed/missing fields abort tracking for this player
+            logger.exception(e)
 
-        row[PlayerStatsTask.idx["guild"]] = f'"{guild}"'
-        row[PlayerStatsTask.idx["guild_rank"]] = f'"{guild_rank}"'
-
-        character_data = stats["characters"]
+        character_data = stats.get("characters", {})
         for cl_name in character_data:
             cl = character_data[cl_name]
             cl_type = cl["type"]
@@ -316,13 +314,17 @@ class PlayerStatsTask(Task):
                 else:
                     inserts_war_update.append((uuid, cl_name, warcount, cl_type))
 
-            if cl["dungeons"]:
-                for dung, dung_count in cl["dungeons"]["list"].items():
+            dungeons = cl.get("dungeons", {}) or {}
+            dungeons_list = dungeons.get("list", {}) or {}
+            if dungeons_list:
+                for dung, dung_count in dungeons_list.items():
                     if dung in PlayerStatsTask.idx:
                         row[PlayerStatsTask.idx[dung]] += dung_count
 
-            if cl["raids"]:
-                for raid, raid_count in cl["raids"]["list"].items():
+            raids = cl.get("raids", {}) or {}
+            raids_list = raids.get("list", {}) or {}
+            if raids_list:
+                for raid, raid_count in raids_list.items():
                     if raid in PlayerStatsTask.idx:
                         row[PlayerStatsTask.idx[raid]] += raid_count
 
