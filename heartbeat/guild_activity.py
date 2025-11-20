@@ -16,6 +16,7 @@ class GuildActivityTask(Task):
     def __init__(self, start_after, sleep, wsconns):
         super().__init__(start_after, sleep)
         self.wsconns = wsconns
+        self.guildmembers_check = None
         
     def stop(self):
         self.finished = True
@@ -30,23 +31,36 @@ class GuildActivityTask(Task):
                 logger.info("GUILD ACTIVITY TRACK START")
                 start = time.time()
 
-                guild_data_members = (await Async.get("https://api.wynncraft.com/v3/guild/Titans%20Valor"))["members"]
-                current_guild_members = set()
-                for rank in guild_data_members:
-                    if type(guild_data_members[rank]) != dict: continue
-                    current_guild_members |= guild_data_members[rank].keys()
+                guildmembers_data = (await Async.get("https://api.wynncraft.com/v3/guild/Titans%20Valor"))["members"]
+                currentguild = set()
+                for rank in guildmembers_data:
+                    if type(guildmembers_data[rank]) != dict: continue
+                    currentguild |= guildmembers_data[rank].keys()
 
-                old_guild_members = {x[1] for x in Connection.execute(f"SELECT * FROM guild_member_cache") if x[0] == "Titans Valor"}
-                left = [f'"{x}"' for x in old_guild_members-current_guild_members]
-                join = [f'"{x}"' for x in current_guild_members-old_guild_members]
+                if self.guildmembers_check is None:
+                    try:
+                        rows = Connection.execute("SELECT name FROM guild_member_cache WHERE guild='Titans Valor'")
+                        self.guildmembers_check = {r[0] for r in rows} if rows else set()
+                    except Exception:
+                        self.guildmembers_check = set()
+
+                old_members = set(self.guildmembers_check)
+                left = [f'"{x}"' for x in old_members - currentguild]
+                join = [f'"{x}"' for x in currentguild - old_members]
                 
                 if left or join:
                     for ws in self.wsconns:
                         await ws.send('{"type":"join","leave":'+f'[{",".join(left)}],"join":'+f'[{",".join(join)}]' + "}")
                     await Async.post(webhook, {"content": f"Joined: {repr(join)}\nLeft: {repr(left)}"})
 
-                Connection.execute("DELETE FROM guild_member_cache WHERE guild='Titans Valor'")
-                Connection.execute("INSERT INTO guild_member_cache VALUES "+",".join(f"('Titans Valor','{x}')" for x in current_guild_members))
+                try:
+                    Connection.execute("DELETE FROM guild_member_cache WHERE guild='Titans Valor'")
+                    if currentguild:
+                        Connection.execute("INSERT INTO guild_member_cache VALUES "+",".join(f"('Titans Valor','{x}')" for x in currentguild))
+                except Exception:
+                    logger.debug("Failed to update guild_member_cache in DB")
+
+                self.guildmembers_check = set(currentguild)
                 
                 # Get guild list and fetch online counts directly from guild endpoints
                 guilds = [g[0] for g in Connection.execute("SELECT * FROM guild_list")]
