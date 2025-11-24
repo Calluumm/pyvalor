@@ -163,7 +163,7 @@ class PlayerStatsTask(Task):
 
     @staticmethod
     def append_player_global_stats_feature(feature_list, now, uuid, guild, kv_dict, old_global_stats, update_player_global_stats, deltas_player_global_stats, prefix="g"):
-        old_player_global_stats = old_global_stats.get(uuid)
+        old_player_global_stats = old_global_stats.get(uuid) if isinstance(old_global_stats, dict) else None
         for feat in feature_list:
             feat_name = f"{prefix}_{feat}"
             new_val = kv_dict.get(feat, 0)
@@ -182,18 +182,22 @@ class PlayerStatsTask(Task):
         
     @staticmethod 
     def append_player_global_stats(stats, old_global_data, update_player_global_stats, deltas_player_global_stats):
-        global_data = stats.get("globalData", {}) if isinstance(stats, dict) else {}
+        if not isinstance(stats, dict):
+            stats = {}
+        if old_global_data is None:
+            old_global_data = {}
+        global_data = stats.get("globalData", {}) or {}
         global_data_features = ["wars", "totalLevel", "mobsKilled", "chestsFound", "completedQuests"]
-        dungeons_list = global_data.get("dungeons", {}).get("list", {}) if isinstance(global_data, dict) else {}
-        raids_list = global_data.get("raids", {}).get("list", {}) if isinstance(global_data, dict) else {}
-        pvp_data = global_data.get("pvp", {}) if isinstance(global_data, dict) else {}
+        dungeons_list = (global_data.get("dungeons", {}) or {}).get("list", {})
+        raids_list = (global_data.get("raids", {}) or {}).get("list", {})
+        pvp_data = global_data.get("pvp", {}) or {}
         global_data_dungeons_features = list(dungeons_list.keys()) if isinstance(dungeons_list, dict) else []
         global_data_raids_features = list(raids_list.keys()) if isinstance(raids_list, dict) else []
         global_data_pvp_features = ["kills", "deaths"]
         now = time.time()
 
-        uuid = stats.get("uuid", "unknown") if isinstance(stats, dict) else "unknown"
-        guild = stats.get("guild", {}).get("name") if isinstance(stats, dict) else None
+        uuid = stats.get("uuid", "unknown")
+        guild = (stats.get("guild") or {}).get("name")
 
         try:
             PlayerStatsTask.append_player_global_stats_feature(global_data_features, now, uuid, guild, global_data, old_global_data, update_player_global_stats, deltas_player_global_stats)
