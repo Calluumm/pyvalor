@@ -78,7 +78,7 @@ class PlayerStatsTask(Task):
         exist = Connection.execute(f"SELECT * FROM uuid_name WHERE name='{player}' LIMIT 1")
         if not exist:
             mojang_data = await Async.get(f"https://api.mojang.com/users/profiles/minecraft/{player}")
-            if not "id" in mojang_data:
+            if mojang_data is None or not "id" in mojang_data:
                 return False
             
             uuid = mojang_data["id"]
