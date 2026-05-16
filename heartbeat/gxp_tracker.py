@@ -63,7 +63,7 @@ class GXPTrackerTask(Task):
                 for guild, priority in guild_names:
                     URL = f"https://api.wynncraft.com/v3/guild/{guild}"
                     g = await Async.get(URL)
-                    if not "members" in g or not "level" in g:
+                    if g is None or not "members" in g or not "level" in g:
                         continue    
 
                     guild_level, guild_percent = g["level"], g["xpPercent"] * 0.01
