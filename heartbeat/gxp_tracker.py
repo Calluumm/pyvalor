@@ -10,7 +10,7 @@ import math
 from log import logger
 import math
 
-EXCEPTIONS = ["Titans Valor", "The Aquarium", "Avicia", "Empire of Sindria", "KongoBoys", "Paladins United", "Nerfuria", "Empire of Sindria", "Eden", "Idiot Co"]
+EXCEPTIONS = ["Titans Valor", "The Aquarium", "Avicia", "Empire of Sindria", "KongoBoys", "Paladins United", "Nerfuria", "Empire of Sindria", "Eden", "Idiot Co", "Hesperides", "The Broken Gasmask", "Anime Lovers", "TruthSword", "Emipre of TKW", "Black Fangs", "Profession Heaven", "Chiefs Of Corkus", "Cirrus"]
 
 class GXPTrackerTask(Task):
     def __init__(self, start_after, sleep):
@@ -99,11 +99,10 @@ class GXPTrackerTask(Task):
                                 member_uuid = member_fields["uuid"]
                                 insert_gxp_deltas.append((member_uuid, gxp_delta))
 
-                    if len(insert_gxp_deltas) >= 3:
-                        for member_uuid, gxp_delta in insert_gxp_deltas:
-                            if guild_level >= 95 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
-                                num_raids = gxp_delta // count_raid_threshold
-                                insert_raid_deltas.append((member_uuid, guild, start, num_raids))
+                    for member_uuid, gxp_delta in insert_gxp_deltas:
+                        if guild_level >= 95 and gxp_delta >= count_raid_threshold and count_raid_threshold > 0:
+                            num_raids = gxp_delta // count_raid_threshold
+                            insert_raid_deltas.append((member_uuid, guild, start, num_raids))
 
                     if guild == "Titans Valor":
 
