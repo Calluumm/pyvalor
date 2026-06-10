@@ -19,7 +19,9 @@ class Connection:
     conn = mysql.connector.connect(**_info)
 
     @classmethod
-    def execute(cls, query: str, prepared=False, prep_values=[], fetchall=True):
+    def execute(cls, query: str, prepared=False, prep_values=None, fetchall=True):
+        if prep_values is None:
+            prep_values = []
         if time.time() - cls.last_connected > cls.connection_live:
             cls.conn.close()
             cls.conn = mysql.connector.connect(**cls._info)

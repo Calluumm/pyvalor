@@ -9,6 +9,7 @@ import sys
 import math
 from log import logger
 import math
+import traceback
 
 EXCEPTIONS = ["Titans Valor", "The Aquarium", "Avicia", "Empire of Sindria", "KongoBoys", "Paladins United", "Nerfuria", "Empire of Sindria", "Eden", "Idiot Co", "Hesperides", "The Broken Gasmask", "Anime Lovers", "TruthSword", "Emipre of TKW", "Black Fangs", "Profession Heaven", "Chiefs Of Corkus", "Cirrus"]
 
@@ -149,7 +150,24 @@ class GXPTrackerTask(Task):
 
                     if insert_raid_deltas:
                         query = "INSERT INTO guild_raid_records VALUES " + ("(%s, %s, %s, %s),"*len(insert_raid_deltas))[:-1]
-                        Connection.execute(query, prep_values=[y for x in insert_raid_deltas for y in x])
+                        try:
+                            Connection.execute(query, prep_values=[y for x in insert_raid_deltas for y in x], fetchall=False)
+                        except Exception as raid_insert_err:
+                            logger.error(
+                                "Batch insert into guild_raid_records failed (%s). Falling back to per-row insert.",
+                                raid_insert_err,
+                            )
+                            logger.error(traceback.format_exc())
+                            single_row_query = "INSERT INTO guild_raid_records VALUES (%s, %s, %s, %s)"
+                            for row in insert_raid_deltas:
+                                try:
+                                    Connection.execute(single_row_query, prepared=True, prep_values=list(row), fetchall=False)
+                                except Exception as row_insert_err:
+                                    logger.error(
+                                        "Skipping raid record row after insert failure: row=%s err=%s",
+                                        row,
+                                        row_insert_err,
+                                    )
 
                     if insert_gxp_deltas:
                         query = "INSERT INTO player_delta_record VALUES " +\
@@ -163,7 +181,7 @@ class GXPTrackerTask(Task):
                     if active_guild_rows:
                         query = "REPLACE INTO guild_autotrack_active (guild, priority, level) VALUES " + \
                             ("(%s, %s, %s),"*len(active_guild_rows))[:-1] + ';'
-                        Connection.execute(query, active_guild_rows, prep_values=[y for x in active_guild_rows for y in x])
+                        Connection.execute(query, prepared=True, prep_values=[y for x in active_guild_rows for y in x], fetchall=False)
 
                     end = time.time()
                     
