@@ -563,34 +563,52 @@ class PlayerStatsTask(Task):
         curr_time = time.time()
 
         if inserts_war_update:
-            query_wars_update  = "REPLACE INTO cumu_warcounts VALUES " + ','.join(f"(\'{uuid}\',\'{character_id}\', {curr_time}, {warcount}, \'{cl_type}\')" 
-                                                                                    for uuid, character_id, warcount, cl_type in inserts_war_update)
-            Connection.execute(query_wars_update)
+            try:
+                query_wars_update  = "REPLACE INTO cumu_warcounts VALUES " + ','.join(f"(\'{uuid}\',\'{character_id}\', {curr_time}, {warcount}, \'{cl_type}\')" 
+                                                                                        for uuid, character_id, warcount, cl_type in inserts_war_update)
+                Connection.execute(query_wars_update)
+            except Exception as e:
+                logger.error(f"write_results_to_db: war update failed: {e}")
 
         if inserts_war_deltas:
-            query_wars_delta  = "INSERT INTO delta_warcounts VALUES " + ','.join(f"('{uuid}','{character_id}', {ts}, {wardiff}, '{cl_type}')" 
-                                                        for uuid, character_id, ts, wardiff, cl_type in inserts_war_deltas)
-            Connection.execute(query_wars_delta)
+            try:
+                query_wars_delta  = "INSERT INTO delta_warcounts VALUES " + ','.join(f"('{uuid}','{character_id}', {ts}, {wardiff}, '{cl_type}')" 
+                                                            for uuid, character_id, ts, wardiff, cl_type in inserts_war_deltas)
+                Connection.execute(query_wars_delta)
+            except Exception as e:
+                logger.error(f"write_results_to_db: war delta failed: {e}")
 
         if inserts_graid_update:
-            query_graids_update  = "REPLACE INTO cumu_graids VALUES " + ','.join(f"(\'{uuid}\', {curr_time}, {tcc}, {onol}, {notg}, {tna}, {twp}, \'{guild}\')" 
-                                                                                    for uuid, tcc, onol, notg, tna, twp, guild in inserts_graid_update)
-            Connection.execute(query_graids_update)
+            try:
+                query_graids_update  = "REPLACE INTO cumu_graids VALUES " + ','.join(f"(\'{uuid}\', {curr_time}, {tcc}, {onol}, {notg}, {tna}, {twp}, \'{guild}\')" 
+                                                                                        for uuid, tcc, onol, notg, tna, twp, guild in inserts_graid_update)
+                Connection.execute(query_graids_update)
+            except Exception as e:
+                logger.error(f"write_results_to_db: graid update failed: {e}")
 
         if inserts_graid_deltas:
-            query_graids_delta  = "INSERT INTO delta_graids VALUES " + ','.join(f"(\'{uuid}\', {ts}, " + '"'+raid_type+'"' + f", {graiddiff}, \'{guild}\')" 
-                                                        for uuid, guild, ts, raid_type, graiddiff in inserts_graid_deltas)
-            Connection.execute(query_graids_delta)
+            try:
+                query_graids_delta  = "INSERT INTO delta_graids VALUES " + ','.join(f"(\'{uuid}\', {ts}, " + '"'+raid_type+'"' + f", {graiddiff}, \'{guild}\')" 
+                                                            for uuid, guild, ts, raid_type, graiddiff in inserts_graid_deltas)
+                Connection.execute(query_graids_delta)
+            except Exception as e:
+                logger.error(f"write_results_to_db: graid delta failed: {e}")
 
         if update_player_global_stats:
-            query_global_update  = "REPLACE INTO player_global_stats VALUES " + ',\n'.join(f"(\'{uuid}\'," + '"'+feat_name+'"'+f", {value})" 
-                                                        for uuid, feat_name, value in update_player_global_stats)
-            Connection.execute(query_global_update)
+            try:
+                query_global_update  = "REPLACE INTO player_global_stats VALUES " + ',\n'.join(f"(\'{uuid}\'," + '"'+feat_name+'"'+f", {value})" 
+                                                            for uuid, feat_name, value in update_player_global_stats)
+                Connection.execute(query_global_update)
+            except Exception as e:
+                logger.error(f"write_results_to_db: global stats update failed: {e}")
 
         if deltas_player_global_stats:
-            query_global_delta  = "INSERT INTO player_delta_record VALUES " + ','.join(f"(\'{uuid}\',\'{guild}\', {now}, " + '"'+feat_name+'"' + f", {delta_val})" 
-                                                        for uuid, guild, now, feat_name, delta_val in deltas_player_global_stats)
-            Connection.execute(query_global_delta)
+            try:
+                query_global_delta  = "INSERT INTO player_delta_record VALUES " + ','.join(f"(\'{uuid}\',\'{guild}\', {now}, " + '"'+feat_name+'"' + f", {delta_val})" 
+                                                            for uuid, guild, now, feat_name, delta_val in deltas_player_global_stats)
+                Connection.execute(query_global_delta)
+            except Exception as e:
+                logger.error(f"write_results_to_db: global delta failed: {e}")
 
         if uuid_name:
             name_paren = ['\''+uuid+'\'' for uuid, _ in uuid_name]
