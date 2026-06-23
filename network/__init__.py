@@ -1,6 +1,7 @@
 import aiohttp
 import math
 import asyncio
+import time
 from typing import Any, Dict, List, Union, Callable
 import dotenv
 import os
@@ -13,10 +14,18 @@ TRIES = 3
 
 class Async:
     session: aiohttp.ClientSession
+    apiKeys: List[str] = []
+    keyCursor = 0
+    keyCooldowns: Dict[str, float] = {}
+    keyLock: asyncio.Lock = asyncio.Lock()
 
     def __init__(self):
         async def init():
             Async.session = aiohttp.ClientSession()
+            keysRaw = os.environ.get("WYNNKEY", "")
+            parsedKeys = [k.strip() for k in keysRaw.replace("\n", ",").split(",") if k.strip()]
+            Async.apiKeys = parsedKeys
+            Async.keyCooldowns = {k: 0.0 for k in parsedKeys}
 
         asyncio.get_event_loop().run_until_complete(init())
 
@@ -39,13 +48,63 @@ class Async:
         return results
     
     @staticmethod
+    async def nextApiKey() -> str:
+        if not Async.apiKeys:
+            return ""
+
+        while True:
+            waitSeconds = 0.0
+            now = time.monotonic()
+            async with Async.keyLock:
+                keyCount = len(Async.apiKeys)
+                for _ in range(keyCount):
+                    key = Async.apiKeys[Async.keyCursor]
+                    Async.keyCursor = (Async.keyCursor + 1) % keyCount
+                    if Async.keyCooldowns.get(key, 0.0) <= now:
+                        return key
+
+                earliestReady = min(Async.keyCooldowns.get(k, 0.0) for k in Async.apiKeys)
+                waitSeconds = max(0.0, earliestReady - now)
+
+            await asyncio.sleep(waitSeconds if waitSeconds > 0 else TRY_SLEEP)
+
+    @staticmethod
+    def readWaitSeconds(response: aiohttp.ClientResponse) -> float:
+        resetHeader = response.headers.get("RateLimit-Reset")
+        if resetHeader:
+            try:
+                return max(float(resetHeader), TRY_SLEEP)
+            except Exception:
+                pass
+
+        retryHeader = response.headers.get("Retry-After")
+        if retryHeader:
+            try:
+                return max(float(retryHeader), TRY_SLEEP)
+            except Exception:
+                pass
+
+        return float(TRY_SLEEP)
+
+    @staticmethod
     async def get(uri: str) -> Union[aiohttp.ClientResponse, None]:
         t = TRIES
         res = None
-        bearer_header = { "Authorization": f"Bearer {os.environ.get('WYNNKEY')}" }
         while t:
+            key = await Async.nextApiKey()
+            bearerHeader = {"Authorization": f"Bearer {key}"} if key else {}
             try: 
-                res = await Async.session.get(uri, headers=bearer_header)
+                res = await Async.session.get(uri, headers=bearerHeader)
+
+                if res.status == 429:
+                    waitSeconds = Async.readWaitSeconds(res)
+                    if key:
+                        async with Async.keyLock:
+                            Async.keyCooldowns[key] = time.monotonic() + waitSeconds
+                    await asyncio.sleep(waitSeconds)
+                    t -= 1
+                    continue
+
                 return await res.json()
             except Exception as e:
                 if "v3/player" in uri: raise e # TODO: wait until wynnapi fixes unhelpful error 500 messages
