@@ -90,6 +90,7 @@ class Async:
     async def get(uri: str) -> Union[aiohttp.ClientResponse, None]:
         t = TRIES
         res = None
+        last_error = None
         while t:
             key = await Async.nextApiKey()
             bearerHeader = {"Authorization": f"Bearer {key}"} if key else {}
@@ -107,10 +108,12 @@ class Async:
 
                 return await res.json()
             except Exception as e:
-                if "v3/player" in uri: raise e # TODO: wait until wynnapi fixes unhelpful error 500 messages
+                last_error = e
                 print(uri, "borked")
                 await asyncio.sleep(TRY_SLEEP)
             t -= 1
+        if last_error is not None and "v3/player" in uri:
+            raise last_error
 
     @staticmethod
     async def post(uri: str, param: Dict[Any, Any]) -> Union[aiohttp.ClientResponse, None]:
@@ -122,7 +125,7 @@ class Async:
             return await res.json()
         except Exception as e:
             print(uri, "borked")
-            print(e.with_traceback())
+            print(e)
             await asyncio.sleep(TRY_SLEEP)
             
 _ = Async()
