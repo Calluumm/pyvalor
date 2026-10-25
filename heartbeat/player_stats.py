@@ -407,10 +407,10 @@ class PlayerStatsTask(Task):
                 logger.warn(f"PLAYER STATS uuid and name don't work: {player}")
                 return False
 
-        row = [0]*len(PlayerStatsTask.idx)
-        if not stats or not "uuid" in stats:
+        if not isinstance(stats, dict) or "uuid" not in stats:
             return False
 
+        row = [0]*len(PlayerStatsTask.idx)
         uuid = stats["uuid"]
         row[PlayerStatsTask.idx["uuid"]] = uuid
         player = stats["username"] # make sure player becomes username
@@ -561,12 +561,12 @@ class PlayerStatsTask(Task):
         prior_memberships_by_uuid = {uuid: (guild, guild_rank) for uuid, guild, guild_rank in prior_memberships}
 
         if members_by_uuid:
-            _, old_membership, _, prev_graidcounts, old_global_data = await PlayerStatsTask.get_stats_track_references(
+            _, old_membership, prev_warcounts, prev_graidcounts, old_global_data = await PlayerStatsTask.get_stats_track_references(
                 needs_player_list=False,
                 force_player_list=list(members_by_uuid),
             )
         else:
-            old_membership, prev_graidcounts, old_global_data = {}, {}, {}
+            old_membership, prev_warcounts, prev_graidcounts, old_global_data = {}, {}, {}, {}
         inserts_war_update, inserts_war_deltas, inserts_graid_update, inserts_graid_deltas, inserts_guild_log, inserts, uuid_name, update_player_global_stats, deltas_player_global_stats = PlayerStatsTask.get_empty_stats_track_buffers()
 
         membership_updates = {}
@@ -576,43 +576,63 @@ class PlayerStatsTask(Task):
             if not isinstance(global_data, dict):
                 global_data = {}
 
+            profile_tracked = await PlayerStatsTask.track_player(
+                uuid,
+                old_membership,
+                prev_warcounts,
+                prev_graidcounts,
+                old_global_data,
+                inserts_war_update,
+                inserts_war_deltas,
+                inserts_graid_update,
+                inserts_graid_deltas,
+                inserts_guild_log,
+                inserts,
+                uuid_name,
+                update_player_global_stats,
+                deltas_player_global_stats,
+            )
+            await asyncio.sleep(0.6)
+
             stats = {
                 "uuid": uuid,
                 "username": username,
                 "guild": {"name": guild, "rank": guild_rank},
                 "globalData": global_data,
             }
-            PlayerStatsTask.append_player_global_stats(
-                stats,
-                old_global_data,
-                update_player_global_stats,
-                deltas_player_global_stats,
-                include_character_stats=False,
-                only_present=True,
-                only_greater=True,
-            )
+            if not profile_tracked:
+                PlayerStatsTask.append_player_global_stats(
+                    stats,
+                    old_global_data,
+                    update_player_global_stats,
+                    deltas_player_global_stats,
+                    include_character_stats=False,
+                    only_present=True,
+                    only_greater=True,
+                )
 
             old_guild, old_rank = old_membership.get(uuid, [None, None])
             previous_guild = prev_graidcounts.get(uuid, {}).get("guild")
             if old_guild is None:
                 old_guild = previous_guild
-            if old_guild != guild:
+            if not profile_tracked and old_guild != guild:
                 inserts_guild_log.append(
                     f"('{uuid}', '{PlayerStatsTask.sql_escape(old_guild)}', '{PlayerStatsTask.sql_escape(old_rank)}', '{PlayerStatsTask.sql_escape(guild)}', {int(time.time())})"
                 )
 
-            PlayerStatsTask.append_guild_raid_stats(
-                uuid,
-                guild,
-                old_guild,
-                prev_graidcounts,
-                global_data,
-                inserts_graid_update,
-                inserts_graid_deltas,
-                only_present=True,
-                only_greater=True,
-            )
-            uuid_name.append((uuid, username))
+            if not profile_tracked:
+                PlayerStatsTask.append_guild_raid_stats(
+                    uuid,
+                    guild,
+                    old_guild,
+                    prev_graidcounts,
+                    global_data,
+                    inserts_graid_update,
+                    inserts_graid_deltas,
+                    only_present=True,
+                    only_greater=True,
+                )
+                uuid_name.append((uuid, username))
 
         departed_members = [
             (uuid, guild, guild_rank)
